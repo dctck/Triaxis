@@ -1,188 +1,170 @@
-# TRIAXIS Multiplayer - Deployment Guide
+TRIAXIS Multiplayer - Quick Reference
+🎲 Game Flow
+1. SETUP PHASE
 
-## ✅ Your Firebase is Already Configured!
+Both players click "Ready"
+Game starts automatically
 
-The HTML file now has your Firebase credentials built in.
+2. DRAFT PHASE (Snake Draft: 1-2-2-1)
+First Picker (alternates each round):
 
-## 🎮 NEW FEATURES v2.0
+Picks 1st die
+Gets 4th die automatically
 
-### ✨ What's New:
-- **Hidden Game Codes**: Game list shows player names, not codes
-- **Join by Code**: Manual code entry option
-- **Session Persistence**: Survives page refresh!
-- **Ready System**: Both players must click "Ready" to start
-- **Disconnect Detection**: Alerts when opponent leaves
-- **Auto Cleanup**: Abandoned games deleted automatically
-- **Reconnect**: Rejoin your game after refresh
+Second Picker:
 
-## Quick Deploy to GitHub Pages
+Picks 2nd die
+Picks 3rd die
 
-### Step 1: Create Repository
-1. Go to https://github.com/new
-2. Name it: `triaxis-multiplayer`
-3. Make it **Public**
-4. Click "Create repository"
+Example Round 1: P1 picks #1 → P2 picks #2 → P2 picks #3 → P1 gets #4
+Example Round 2: P2 picks #1 → P1 picks #2 → P1 picks #3 → P2 gets #4
+3. ACTION PHASE (Simultaneous - 60 seconds)
+Both players act at the same time!
+Choose ONE action:
 
-### Step 2: Upload File
-1. Click "uploading an existing file"
-2. Drag `triaxis-multiplayer.html` 
-3. **IMPORTANT**: Rename it to `index.html` (required for GitHub Pages)
-4. Click "Commit changes"
+🏭 Factory: Buy engine upgrades
+🏪 Trade: 3 resources → 2 different resources
+⚔️ Denial: Remove 2⚙️ from opponent (need Insight T3)
+⏭️ Pass: Skip your action
 
-### Step 3: Enable GitHub Pages
-1. Go to repository Settings
-2. Click "Pages" in left sidebar
-3. Under "Branch", select `main` and `/root`
-4. Click "Save"
-5. Wait 1-2 minutes
+When you finish:
 
-### Step 4: Play!
-Your game will be live at:
-```
-https://YOUR_USERNAME.github.io/triaxis-multiplayer/
-```
+UI grays out
+Shows "Waiting for opponent..."
+Can't change your action
 
-## How to Play Multiplayer
+When both finish (or time expires):
 
-### Player 1 (Host):
-1. Open the game URL
-2. Enter your name
-3. Click "Create New Game"
-4. Share the **Game Code** with your friend
-5. Wait for them to join
-6. Click "Ready" when ready to start
-7. Game starts when both click Ready!
+Round effects apply
+Check for winners
+Next round begins
 
-### Player 2 (Join):
-**Option A - From List:**
-1. Open the same game URL
-2. Enter your name
-3. Click on your friend's game in the list
-4. Click "Ready"
+4. END OF ROUND
+Passive Effects Apply:
 
-**Option B - By Code:**
-1. Open the same game URL
-2. Enter your name
-3. Click "Join by Code"
-4. Enter the game code
-5. Click "Ready"
+Metal T3: +2 VP
+Energy T3: +1 VP
+Metal T1: +1⚙️ at START of next round
 
-### Game Features:
-- **Refresh Safe**: Page refresh won't lose your game!
-- **Disconnect Alert**: You'll know if opponent leaves
-- **Turn Indicator**: See whose turn it is
-- **Real-time Sync**: All moves update instantly
+5. WIN CONDITIONS
+Any player who achieves:
 
-## Testing Locally
+18 VP = Victory Points win
+12+ Metal = Industrial Revolution win
+3 Tier-3 Engines = Engine Mastery win
 
-Open `triaxis-multiplayer.html` in your browser - it should work immediately since Firebase is configured!
+📊 Dice to Resources
+Die ValueResource Gained1-21⚙️ Metal (2⚙️ if Metal T2)3-41🌱 Energy5-61📘 Insight
+🏭 Engine Upgrades
+Metal Engines
+TierCostEffectVPI3⚙️+1⚙️ per round start0II2⚙️ 1🌱Dice 1-2 give +2⚙️+1III5⚙️ 1📘+2 VP per round end+1
+Energy Engines
+TierCostEffectVPI2🌱Convert 1🌱→ any (once/round)0II1🌱 1📘Pay 2🌱→ 1 VP (once/round)+1III2⚙️ 3🌱Extra action + 1 VP/round+1
+Insight Engines
+TierCostEffectVPI2📘Reroll 1 die (once/round, draft)0II1🌱 1📘Change die ±1 (once/round, draft)+1III1⚙️ 3📘Pay 1📘→ Remove 2⚙️ + 1 VP (action)+1
+🏪 Trade Rules
+Cost: 3 of one resource
+Gain: 2 different resources (your choice)
+Examples:
 
-To test multiplayer:
-- Open in Chrome normal window (Player 1)
-- Open in Chrome Incognito window (Player 2)
-- Both can play the same game
+3⚙️ → 1🌱 + 1📘
+3🌱 → 2⚙️
+3📘 → 1⚙️ + 1🌱
 
-## Firebase Security (Important!)
+⏱️ Timing
+PhaseTime LimitNotesReadyNoneWait for both playersDraftNoneTake turns pickingAction60 secBoth players simultaneouslyRound EndAutoResolves automatically
+If timer expires: Auto-pass for players who didn't act
+🎯 Strategy Tips
+Early Game (Rounds 1-3)
 
-⚠️ **Current Setup**: Test mode - anyone can read/write (expires in 30 days)
+Focus on Metal T1 for +1⚙️ per round
+Build resource engine in your strong suit
+Don't spend everything - save for combos
 
-For production, update your Firebase Realtime Database Rules:
+Mid Game (Rounds 4-6)
 
-1. Go to Firebase Console
-2. Realtime Database → Rules
-3. Replace with:
+Get at least one T2 engine
+Start trading excess resources
+Watch opponent's VP count
 
-```json
-{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}
-```
+Late Game (Rounds 7+)
 
-Or for better security:
+Push for T3 engines
+Use Denial if opponent near win
+Calculate paths to 18 VP
 
-```json
-{
-  "rules": {
-    "games": {
-      ".read": true,
-      ".write": true,
-      "$gameId": {
-        ".indexOn": ["status", "createdAt"],
-        "status": {
-          ".validate": "newData.val() === 'waiting' || newData.val() === 'ready' || newData.val() === 'active' || newData.val() === 'finished' || newData.val() === 'abandoned'"
-        }
-      }
-    }
-  }
-}
-```
+Draft Priority
 
-## Troubleshooting
+High dice (5-6) for Insight
+Medium dice (3-4) for Energy
+Low dice (1-2) for Metal (unless T2)
 
-### "Can't create game"
-- Check Firebase Console → Realtime Database
-- Make sure it's enabled and rules allow write
-- Check browser console for errors (F12)
+Action Priority
 
-### "Games not showing"
-- Click "Refresh Game List" button
-- Check that games are in "waiting" status in Firebase
-- Old games are auto-cleaned every 5 minutes
+Buy T3 engines when possible (VP + powerful effects)
+Trade when stuck with 3+ unusable resources
+Deny when opponent has 12+ Metal or 15+ VP
+Pass if saving for next turn
 
-### "Disconnected" status
-- Check your internet connection
-- Verify Firebase URL is correct
-- Check Firebase Console for quota limits
+🔥 Pro Tips
+Snake Draft Advantage:
 
-### "Lost my game after refresh"
-- This shouldn't happen anymore! Session is saved
-- Check if you cleared cookies/cache
-- Try rejoining using the game code
+Second picker gets 2 consecutive picks = better combos
+First picker gets last die = more predictable
+Alternate start means each player gets advantage every other round
 
-### "Opponent disconnected but I can't see"
-- Refresh the page - disconnect detection should trigger
-- If stuck, use "Leave Game" button
+Time Management:
 
-## Game Cleanup System
+Don't overthink - 60 seconds goes fast!
+Have a backup plan before your turn
+Pass early if saving resources for big purchase next turn
 
-The game automatically:
-- ✅ Removes abandoned games (when players leave)
-- ✅ Cleans up games older than 1 hour in "waiting" status
-- ✅ Runs cleanup every 5 minutes
-- ✅ All players see clean game lists
+Resource Management:
 
-## Features
+Keep 2-3 of each type if possible
+Don't hoard - use or trade excess
+Metal T3 expensive but powerful
 
-✅ Multiple concurrent games
-✅ Real-time synchronization  
-✅ Turn-based gameplay
-✅ Ready system (both must ready up)
-✅ Connection monitoring
-✅ Disconnect detection
-✅ Session persistence (survive refresh)
-✅ Auto-reconnect
-✅ Automatic game cleanup
-✅ Join by code or from list
-✅ Hidden game codes in list
+VP Tracking:
 
-## Need Help?
+Most VP comes from T2/T3 engines
+Each T2 or T3 (except Metal) = 1 VP
+Metal T3 gives +2 VP every round (powerful!)
+Insight T3 gives +1 VP per use
 
-Check the browser console (F12) for error messages!
+🐛 Troubleshooting
+"Not your turn" during draft:
 
-## Known Limitations
+Check top of screen for whose turn
+Snake draft means different order each pick
 
-- Factory and Trade menus need full implementation
-- Energy Tier effects partially implemented
-- No undo/rematch feature yet
+Can't complete action:
 
-## Next Steps
+Check if you already acted (UI grayed out)
+Check if you have resources for that action
+Check timer - might have expired
 
-To fully complete the game:
-1. Implement Factory menu with Firebase updates
-2. Implement Trade menu with Firebase updates
-3. Add all Energy Tier effects
-4. Add game history/statistics
-5. Add authentication for better security
+Waiting forever:
+
+Check opponent's connection status
+Timer should auto-resolve after 60 seconds
+Refresh if stuck (session persists!)
+
+Actions not appearing:
+
+Make sure you're in action phase (not draft)
+Check if your actionComplete flag is set
+Try refreshing the page
+
+📱 Controls
+Desktop:
+
+Click dice to pick
+Click buttons for actions
+Scroll to see all options
+
+Mobile:
+
+Tap dice to pick
+Tap buttons for actions
+Swipe to see all options

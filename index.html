@@ -417,6 +417,7 @@
             <div class="lobby-section">
                 <h2>Create or Join a Game</h2>
                 <button class="btn btn-success" onclick="createNewGame()" style="width: 100%; margin-bottom: 10px;">🎮 Create New Game</button>
+                <button class="btn btn-warning" onclick="showJoinByCode()" style="width: 100%; margin-bottom: 10px;">🔢 Join by Code</button>
                 <button class="btn btn-primary" onclick="refreshGameList()" style="width: 100%;">🔄 Refresh Game List</button>
             </div>
             
@@ -436,6 +437,10 @@
                     <h3>Game Code: <span id="gameCodeDisplay"></span></h3>
                     <p style="margin: 10px 0;">Share this code with your friend!</p>
                     <p id="waitingMessage">Waiting for opponent to join...</p>
+                    <div id="readySection" class="hidden" style="margin-top: 20px;">
+                        <p id="readyStatus" style="margin-bottom: 10px;"></p>
+                        <button class="btn btn-success" id="readyBtn" onclick="toggleReady()" style="width: 100%; margin-bottom: 10px;">Ready</button>
+                    </div>
                 </div>
                 <button class="btn btn-danger" onclick="leaveGame()" style="width: 100%;">Leave Game</button>
             </div>
@@ -549,6 +554,89 @@
         let gameRef = null;
         let gameListener = null;
         
+        // Load from session storage if exists
+        function loadSession() {
+            const savedSession = sessionStorage.getItem('triaxis_session');
+            if (savedSession) {
+                try {
+                    const session = JSON.parse(savedSession);
+                    localPlayer = session.localPlayer;
+                    currentGameId = session.currentGameId;
+                    
+                    if (localPlayer.name && currentGameId) {
+                        document.getElementById('playerNameDisplay').textContent = `Playing as: ${localPlayer.name}`;
+                        document.getElementById('lobbyScreen').classList.add('hidden');
+                        
+                        // Try to rejoin the game
+                        rejoinGame();
+                        return true;
+                    }
+                } catch (e) {
+                    console.error('Error loading session:', e);
+                }
+            }
+            return false;
+        }
+        
+        function saveSession() {
+            sessionStorage.setItem('triaxis_session', JSON.stringify({
+                localPlayer: localPlayer,
+                currentGameId: currentGameId
+            }));
+        }
+        
+        function clearSession() {
+            sessionStorage.removeItem('triaxis_session');
+        }
+        
+        function rejoinGame() {
+            if (!currentGameId) return;
+            
+            gameRef = database.ref('games/' + currentGameId);
+            
+            gameRef.once('value').then(snapshot => {
+                if (!snapshot.exists()) {
+                    alert('Game no longer exists!');
+                    clearSession();
+                    backToLobby();
+                    return;
+                }
+                
+                const gameData = snapshot.val();
+                
+                // Check if still in game
+                if ((localPlayer.playerNumber === 1 && gameData.player1.id === localPlayer.id) ||
+                    (localPlayer.playerNumber === 2 && gameData.player2 && gameData.player2.id === localPlayer.id)) {
+                    
+                    if (gameData.status === 'waiting') {
+                        document.getElementById('gameSelectionScreen').classList.add('hidden');
+                        document.getElementById('waitingRoom').classList.remove('hidden');
+                        document.getElementById('gameCodeDisplay').textContent = gameData.gameCode;
+                    } else if (gameData.status === 'active' || gameData.status === 'ready') {
+                        document.getElementById('gameSelectionScreen').classList.add('hidden');
+                        document.getElementById('waitingRoom').classList.add('hidden');
+                        document.getElementById('gameScreen').classList.remove('hidden');
+                    }
+                    
+                    setupGameListener();
+                } else {
+                    alert('You are no longer in this game!');
+                    clearSession();
+                    backToLobby();
+                }
+            }).catch(error => {
+                console.error('Error rejoining:', error);
+                backToLobby();
+            });
+        }
+        
+        // Try to load session on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!loadSession()) {
+                // Show lobby if no session
+            }
+        });
+        
         const engineCosts = {
             metal: {1: {metal: 3}, 2: {metal: 2, energy: 1}, 3: {metal: 5, insight: 1}},
             energy: {1: {energy: 2}, 2: {energy: 1, insight: 1}, 3: {metal: 2, energy: 3}},
@@ -605,6 +693,8 @@
             localPlayer.name = name;
             document.getElementById('playerNameDisplay').textContent = `Playing as: ${name}`;
             
+            saveSession();
+            
             document.getElementById('lobbyScreen').classList.add('hidden');
             document.getElementById('gameSelectionScreen').classList.remove('hidden');
             
@@ -622,6 +712,8 @@
                 player1: {
                     id: localPlayer.id,
                     name: localPlayer.name,
+                    ready: false,
+                    connected: true,
                     metal: 0,
                     energy: 0,
                     insight: 0,
@@ -648,6 +740,8 @@
             
             database.ref('games/' + gameId).set(newGame)
                 .then(() => {
+                    currentGameId = gameId;
+                    saveSession();
                     joinGame(gameId, 1);
                 })
                 .catch(error => {
@@ -675,8 +769,13 @@
                         const gameItem = document.createElement('div');
                         gameItem.className = 'game-item';
                         gameItem.innerHTML = `
-                            <strong>Game Code: ${game.gameCode}</strong><br>
-                            <small>Host: ${game.player1.name}</small>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>🎮 ${game.player1.name}'s Game</strong><br>
+                                    <small style="color: #28a745;">⏳ Waiting for player...</small>
+                                </div>
+                                <button class="btn btn-success" style="padding: 8px 16px;">Join</button>
+                            </div>
                         `;
                         gameItem.onclick = () => joinGame(gameId, 2);
                         gameListDiv.appendChild(gameItem);
@@ -688,15 +787,45 @@
                 });
         }
         
+        function showJoinByCode() {
+            const code = prompt('Enter Game Code:');
+            if (!code) return;
+            
+            const gameId = 'game_' + code.toUpperCase().trim();
+            
+            database.ref('games/' + gameId).once('value')
+                .then(snapshot => {
+                    if (!snapshot.exists()) {
+                        alert('Game not found! Check the code and try again.');
+                        return;
+                    }
+                    
+                    const game = snapshot.val();
+                    if (game.status !== 'waiting') {
+                        alert('This game is already full or finished!');
+                        return;
+                    }
+                    
+                    joinGame(gameId, 2);
+                })
+                .catch(error => {
+                    alert('Error joining game: ' + error.message);
+                });
+        }
+        
         function joinGame(gameId, playerNumber) {
             currentGameId = gameId;
             localPlayer.playerNumber = playerNumber;
             gameRef = database.ref('games/' + gameId);
             
+            saveSession();
+            
             if (playerNumber === 2) {
                 gameRef.child('player2').set({
                     id: localPlayer.id,
                     name: localPlayer.name,
+                    ready: false,
+                    connected: true,
                     metal: 0,
                     energy: 0,
                     insight: 0,
@@ -712,9 +841,9 @@
                     usedEnergyEffect: false
                 }).then(() => {
                     gameRef.update({
-                        status: 'active',
-                        phase: 'start'
+                        status: 'ready' // Both players present
                     });
+                    addLog(`${localPlayer.name} joined the game!`);
                 });
             }
             
@@ -723,17 +852,56 @@
             document.getElementById('gameCodeDisplay').textContent = gameId.replace('game_', '');
             
             setupGameListener();
+            setupDisconnectHandler();
+        }
+        
+        function setupDisconnectHandler() {
+            const playerKey = 'player' + localPlayer.playerNumber;
+            const connectedRef = gameRef.child(playerKey).child('connected');
+            
+            // Set connected to true
+            connectedRef.set(true);
+            
+            // When I disconnect, set to false and clean up
+            connectedRef.onDisconnect().set(false).then(() => {
+                // Also mark game as abandoned after 30 seconds if opponent disconnects
+                gameRef.child('status').onDisconnect().set('abandoned');
+            });
         }
         
         function setupGameListener() {
             gameListener = gameRef.on('value', snapshot => {
                 if (!snapshot.exists()) {
                     alert('Game no longer exists!');
+                    clearSession();
                     backToLobby();
                     return;
                 }
                 
                 const gameData = snapshot.val();
+                
+                // Check if opponent disconnected
+                if (gameData.status === 'ready' || gameData.status === 'active') {
+                    const oppNum = localPlayer.playerNumber === 1 ? 2 : 1;
+                    const oppKey = 'player' + oppNum;
+                    
+                    if (gameData[oppKey] && gameData[oppKey].connected === false) {
+                        if (confirm('Your opponent disconnected! Do you want to leave the game?')) {
+                            leaveGame();
+                        }
+                    }
+                }
+                
+                // Check if game was abandoned
+                if (gameData.status === 'abandoned') {
+                    alert('Game was abandoned.');
+                    // Delete the game
+                    gameRef.remove();
+                    clearSession();
+                    backToLobby();
+                    return;
+                }
+                
                 updateGameUI(gameData);
             });
         }
@@ -746,6 +914,38 @@
             // If waiting for player 2
             if (gameData.status === 'waiting') {
                 document.getElementById('waitingMessage').textContent = 'Waiting for opponent to join...';
+                document.getElementById('readySection').classList.add('hidden');
+                return;
+            }
+            
+            // If both players present but not started
+            if (gameData.status === 'ready') {
+                document.getElementById('waitingMessage').textContent = 'Both players joined!';
+                document.getElementById('readySection').classList.remove('hidden');
+                
+                const myReady = gameData['player' + localPlayer.playerNumber].ready;
+                const oppReady = gameData['player' + (localPlayer.playerNumber === 1 ? 2 : 1)].ready;
+                
+                document.getElementById('readyBtn').textContent = myReady ? '✓ Ready!' : 'Ready';
+                document.getElementById('readyBtn').style.background = myReady ? '#28a745' : '#6c757d';
+                
+                let statusText = '';
+                if (myReady && oppReady) {
+                    statusText = '🎮 Starting game...';
+                } else if (myReady) {
+                    statusText = '⏳ Waiting for opponent to ready up...';
+                } else if (oppReady) {
+                    statusText = '⚡ Your opponent is ready!';
+                } else {
+                    statusText = '📢 Both players click Ready to start!';
+                }
+                document.getElementById('readyStatus').textContent = statusText;
+                
+                // Auto-start if both ready
+                if (myReady && oppReady && localPlayer.playerNumber === 1) {
+                    setTimeout(() => startGame(), 1500);
+                }
+                
                 return;
             }
             
@@ -793,6 +993,15 @@
             if (gameData.status === 'finished') {
                 showGameOver(gameData);
             }
+        }
+        
+        function toggleReady() {
+            const playerKey = 'player' + localPlayer.playerNumber;
+            
+            gameRef.child(playerKey).child('ready').once('value').then(snapshot => {
+                const currentReady = snapshot.val() || false;
+                gameRef.child(playerKey).child('ready').set(!currentReady);
+            });
         }
         
         function updatePlayerDisplay(playerNum, playerData) {
@@ -897,6 +1106,7 @@
             if (localPlayer.playerNumber !== 1) return;
             
             gameRef.update({
+                status: 'active',
                 round: 1,
                 phase: 'rolling',
                 dice: rollDice(),
@@ -1306,12 +1516,26 @@
                 gameRef.off('value', gameListener);
             }
             
-            if (currentGameId) {
-                gameRef.update({
-                    status: 'abandoned'
+            if (currentGameId && gameRef) {
+                const playerKey = 'player' + localPlayer.playerNumber;
+                
+                // Mark as disconnected
+                gameRef.child(playerKey).child('connected').set(false);
+                
+                // If game hasn't started, mark as abandoned
+                gameRef.once('value').then(snapshot => {
+                    const gameData = snapshot.val();
+                    if (gameData && (gameData.status === 'waiting' || gameData.status === 'ready')) {
+                        gameRef.update({ status: 'abandoned' });
+                        // Delete after a moment
+                        setTimeout(() => {
+                            gameRef.remove();
+                        }, 1000);
+                    }
                 });
             }
             
+            clearSession();
             backToLobby();
         }
         
@@ -1343,6 +1567,36 @@
                 status.classList.add('disconnected');
             }
         });
+        
+        // Cleanup old games periodically
+        function cleanupOldGames() {
+            const oneHourAgo = Date.now() - (60 * 60 * 1000);
+            
+            database.ref('games').once('value').then(snapshot => {
+                const updates = {};
+                
+                snapshot.forEach(childSnapshot => {
+                    const game = childSnapshot.val();
+                    const gameId = childSnapshot.key;
+                    
+                    // Remove abandoned games or very old waiting games
+                    if (game.status === 'abandoned' || 
+                        (game.status === 'waiting' && game.createdAt < oneHourAgo)) {
+                        updates[gameId] = null; // Delete
+                    }
+                });
+                
+                if (Object.keys(updates).length > 0) {
+                    database.ref('games').update(updates);
+                    console.log('Cleaned up', Object.keys(updates).length, 'old games');
+                }
+            });
+        }
+        
+        // Run cleanup every 5 minutes
+        setInterval(cleanupOldGames, 5 * 60 * 1000);
+        // Also run on load
+        setTimeout(cleanupOldGames, 5000);
         
         // Auto-start game when both players ready
         function setupAutoStart() {

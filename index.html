@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIAXIS Multiplayer v4.2</title>
+    <title>TRIAXIS Multiplayer v4.0</title>
     <style>
         * {
             margin: 0;
@@ -395,7 +395,7 @@
     
     <div class="container">
         <div class="header">
-            <h1>🎲 TRIAXIS Multiplayer v4.2</h1>
+            <h1>🎲 TRIAXIS Multiplayer v4.0</h1>
             <p>A 2-Player Dice Engine Game</p>
             <p id="playerNameDisplay" style="font-size: 0.9em; margin-top: 10px;"></p>
         </div>
@@ -1114,7 +1114,7 @@
                     }
                     
                     // Check if time expired
-                    if (remaining <= 0 && localPlayer.playerNumber === 1) {
+                    if (remaining <= 0 && localPlayer.playerNumber === 1 && !resolvingActionPhase) {
                         // Player 1 handles timeout
                         stopTimerUpdates(); // Stop checking once time expires
                         handleActionTimeout();
@@ -1124,8 +1124,8 @@
                     if (myData.actionComplete && oppData.actionComplete) {
                         document.getElementById('turnIndicator').textContent = '⏳ Both actions complete! Processing...';
                         
-                        // Player 1 advances to next phase
-                        if (localPlayer.playerNumber === 1) {
+                        // Player 1 advances to next phase (only if not already resolving)
+                        if (localPlayer.playerNumber === 1 && !resolvingActionPhase) {
                             stopTimerUpdates(); // Stop timer updates
                             setTimeout(() => {
                                 resolveActionPhase();
@@ -1164,6 +1164,7 @@
         }
         
         let timeoutHandled = false;
+        let resolvingActionPhase = false;
         
         function handleActionTimeout() {
             if (timeoutHandled) return; // Already handled
@@ -1202,6 +1203,9 @@
         
         function resolveActionPhase() {
             if (localPlayer.playerNumber !== 1) return; // Only player 1 resolves
+            if (resolvingActionPhase) return; // Already resolving
+            
+            resolvingActionPhase = true;
             
             applyEndOfRoundEffects();
             
@@ -1399,8 +1403,9 @@
                 
                 const now = Date.now();
                 
-                // Reset timeout flag for new action phase
+                // Reset flags for new action phase
                 timeoutHandled = false;
+                resolvingActionPhase = false;
                 
                 gameRef.update({
                     'player1/metal': p1Resources.metal,

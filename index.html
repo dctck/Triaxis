@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIAXIS Multiplayer v4.1</title>
+    <title>TRIAXIS Multiplayer v4.0</title>
     <style>
         * {
             margin: 0;
@@ -2051,20 +2051,31 @@
         function addLog(message) {
             if (!gameRef) return;
             
-            gameRef.once('value').then(snapshot => {
-                const gameData = snapshot.val();
-                const logs = gameData.logs || [];
+            // Use transaction to prevent race conditions
+            gameRef.child('logs').transaction(function(currentLogs) {
+                if (!currentLogs) {
+                    currentLogs = [];
+                }
                 
-                // Use move number instead of timestamp
-                const moveNumber = logs.length + 1;
-                logs.push(`${moveNumber}. ${message}`);
+                // Check if this exact message was just added (prevent duplicates)
+                if (currentLogs.length > 0) {
+                    const lastLog = currentLogs[currentLogs.length - 1];
+                    if (lastLog && lastLog.includes(message)) {
+                        console.log('Prevented duplicate log:', message);
+                        return currentLogs; // Don't modify
+                    }
+                }
+                
+                // Use move number
+                const moveNumber = currentLogs.length + 1;
+                currentLogs.push(`${moveNumber}. ${message}`);
                 
                 // Keep only last 100 logs
-                const recentLogs = logs.slice(-100);
+                if (currentLogs.length > 100) {
+                    currentLogs = currentLogs.slice(-100);
+                }
                 
-                gameRef.update({
-                    logs: recentLogs
-                });
+                return currentLogs;
             });
         }
         

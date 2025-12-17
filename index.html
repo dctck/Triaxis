@@ -726,7 +726,9 @@
                     denials: 0,
                     denied: 0,
                     usedInsightEffect: false,
-                    usedEnergyEffect: false
+                    usedEnergyEffect: false,
+                    actionComplete: false,
+                    waitingForDraftEffect: false
                 },
                 player2: null,
                 round: 0,
@@ -838,7 +840,9 @@
                     denials: 0,
                     denied: 0,
                     usedInsightEffect: false,
-                    usedEnergyEffect: false
+                    usedEnergyEffect: false,
+                    actionComplete: false,
+                    waitingForDraftEffect: false
                 }).then(() => {
                     gameRef.update({
                         status: 'ready' // Both players present
@@ -986,6 +990,13 @@
             // Handle game phases
             handleGamePhase(gameData);
             
+            // Start timer updates if in action phase
+            if (gameData.phase === 'action') {
+                startTimerUpdates();
+            } else {
+                stopTimerUpdates();
+            }
+            
             // Update logs
             if (gameData.logs && gameData.logs.length > 0) {
                 const logDiv = document.getElementById('gameLog');
@@ -1059,10 +1070,16 @@
                 
                 // Show draft effects if it's my turn and I have them
                 const isMyTurn = gameData.currentPlayer === localPlayer.playerNumber;
-                if (isMyTurn && gameData.phase.includes('Pick')) {
-                    const myData = localPlayer.playerNumber === 1 ? gameData.player1 : gameData.player2;
-                    const myDice = localPlayer.playerNumber === 1 ? gameData.player1Dice : gameData.player2Dice;
-                    
+                const myData = localPlayer.playerNumber === 1 ? gameData.player1 : gameData.player2;
+                const myDice = localPlayer.playerNumber === 1 ? gameData.player1Dice : gameData.player2Dice;
+                
+                // Check if waiting for draft effect decision
+                if (myData.waitingForDraftEffect && myDice && myDice.length > 0 && !myData.usedInsightEffect) {
+                    if (myData.insightTier >= 1 || myData.insightTier >= 2) {
+                        showDraftEffects(myData.insightTier);
+                    }
+                } else if (isMyTurn && gameData.phase.includes('Pick')) {
+                    // Show effects after picking if have them
                     if (myDice && myDice.length > 0 && !myData.usedInsightEffect) {
                         if (myData.insightTier >= 1 || myData.insightTier >= 2) {
                             showDraftEffects(myData.insightTier);
@@ -1076,7 +1093,7 @@
                 // Show action area for everyone during action phase
                 document.getElementById('actionArea').classList.remove('hidden');
                 
-                // Calculate time remaining
+                // Calculate time remaining and update display
                 if (gameData.actionPhaseStartTime && gameData.actionTimeLimit) {
                     const elapsed = Date.now() - gameData.actionPhaseStartTime;
                     const remaining = Math.max(0, gameData.actionTimeLimit - elapsed);
@@ -1114,6 +1131,33 @@
                         }
                     }
                 }
+            }
+        }
+        
+        // Start timer update interval when game loads
+        let timerUpdateInterval = null;
+        
+        function startTimerUpdates() {
+            // Clear any existing interval
+            if (timerUpdateInterval) {
+                clearInterval(timerUpdateInterval);
+            }
+            
+            // Update every second
+            timerUpdateInterval = setInterval(() => {
+                gameRef.once('value').then(snapshot => {
+                    const gameData = snapshot.val();
+                    if (gameData && gameData.phase === 'action') {
+                        handleGamePhase(gameData);
+                    }
+                });
+            }, 1000);
+        }
+        
+        function stopTimerUpdates() {
+            if (timerUpdateInterval) {
+                clearInterval(timerUpdateInterval);
+                timerUpdateInterval = null;
             }
         }
         
@@ -1205,27 +1249,31 @@
             
             const firstPicker = 1; // Round 1, player 1 goes first
             
-            gameRef.update({
-                status: 'active',
-                round: 1,
-                phase: 'rolling',
-                dice: rollDice(),
-                player1Dice: [],
-                player2Dice: [],
-                currentPlayer: firstPicker
-            });
-            
-            addLog('Game started! Round 1');
-            addLog(`${firstPicker === 1 ? 'Player 1' : 'Player 2'} picks first this round`);
-            
-            // Apply passive effects
-            applyStartOfRoundEffects();
-            
-            setTimeout(() => {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                
                 gameRef.update({
-                    phase: 'player' + firstPicker + 'Pick1'
+                    status: 'active',
+                    round: 1,
+                    phase: 'rolling',
+                    dice: rollDice(),
+                    player1Dice: [],
+                    player2Dice: [],
+                    currentPlayer: firstPicker
                 });
-            }, 1000);
+                
+                addLog('Game started! Round 1');
+                addLog(`${gameData.player1.name} picks first this round`);
+                
+                // Apply passive effects
+                applyStartOfRoundEffects();
+                
+                setTimeout(() => {
+                    gameRef.update({
+                        phase: 'player' + firstPicker + 'Pick1'
+                    });
+                }, 1000);
+            });
         }
         
         function rollDice() {
@@ -1258,17 +1306,34 @@
                 
                 // Snake draft: P1 picks 1st, P2 picks 2nd and 3rd, P1 gets 4th (last)
                 const firstPicker = gameData.round % 2 === 1 ? 1 : 2; // Alternates who goes first
+                const myData = gameData[playerKey];
+                
+                // Check if player has insight effects available
+                const hasInsightEffects = (myData.insightTier >= 1 || myData.insightTier >= 2) && !myData.usedInsightEffect;
                 
                 if (gameData.phase === 'player' + firstPicker + 'Pick1') {
                     // First picker took 1st die, now second picker gets 2 picks
                     const secondPicker = firstPicker === 1 ? 2 : 1;
-                    updates.phase = 'player' + secondPicker + 'Pick2a';
-                    updates.currentPlayer = secondPicker;
+                    
+                    if (hasInsightEffects) {
+                        // Set waiting flag, don't change phase yet
+                        updates[playerKey + '/waitingForDraftEffect'] = true;
+                    } else {
+                        // No effects, proceed to next phase
+                        updates.phase = 'player' + secondPicker + 'Pick2a';
+                        updates.currentPlayer = secondPicker;
+                    }
                     
                 } else if (gameData.phase === 'player' + localPlayer.playerNumber + 'Pick2a') {
                     // Second picker took their first die, still their turn for 2nd die
-                    updates.phase = 'player' + localPlayer.playerNumber + 'Pick2b';
-                    // currentPlayer stays the same
+                    
+                    if (hasInsightEffects) {
+                        // Set waiting flag, don't change phase yet
+                        updates[playerKey + '/waitingForDraftEffect'] = true;
+                    } else {
+                        // No effects, proceed to pick second die
+                        updates.phase = 'player' + localPlayer.playerNumber + 'Pick2b';
+                    }
                     
                 } else if (gameData.phase === 'player' + localPlayer.playerNumber + 'Pick2b') {
                     // Second picker took both dice, first picker gets last die automatically
@@ -1281,13 +1346,31 @@
                     
                     addLog(`${gameData[firstPickerKey].name} gets last die: ${lastDie}`);
                     
-                    // Draft done, convert to resources and go to action phase
-                    setTimeout(() => {
-                        finishDrafting();
-                    }, 500);
-                    
-                    gameRef.update(updates);
-                    return;
+                    if (hasInsightEffects) {
+                        // Set waiting flag for second picker
+                        updates[playerKey + '/waitingForDraftEffect'] = true;
+                        // Also set waiting flag for first picker who just got last die
+                        const firstPickerData = gameData[firstPickerKey];
+                        const firstPickerHasEffects = (firstPickerData.insightTier >= 1 || firstPickerData.insightTier >= 2) && !firstPickerData.usedInsightEffect;
+                        if (firstPickerHasEffects) {
+                            updates[firstPickerKey + '/waitingForDraftEffect'] = true;
+                        }
+                        // Don't finish drafting yet
+                    } else {
+                        // Check if first picker needs to wait for effects
+                        const firstPickerData = gameData[firstPickerKey];
+                        const firstPickerHasEffects = (firstPickerData.insightTier >= 1 || firstPickerData.insightTier >= 2) && !firstPickerData.usedInsightEffect;
+                        
+                        if (firstPickerHasEffects) {
+                            updates[firstPickerKey + '/waitingForDraftEffect'] = true;
+                        } else {
+                            // Nobody waiting, finish drafting
+                            gameRef.update(updates).then(() => {
+                                setTimeout(() => finishDrafting(), 500);
+                            });
+                            return;
+                        }
+                    }
                 }
                 
                 gameRef.update(updates);
@@ -1343,7 +1426,54 @@
         }
         
         function skipDraftEffects() {
-            document.getElementById('draftEffects').classList.add('hidden');
+            const playerKey = 'player' + localPlayer.playerNumber;
+            
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const updates = {
+                    [playerKey + '/waitingForDraftEffect']: false
+                };
+                
+                // Determine what phase we're in and where to go next
+                const firstPicker = gameData.round % 2 === 1 ? 1 : 2;
+                const secondPicker = firstPicker === 1 ? 2 : 1;
+                
+                if (gameData.phase === 'player' + firstPicker + 'Pick1') {
+                    // First picker skipped effect, move to second picker
+                    updates.phase = 'player' + secondPicker + 'Pick2a';
+                    updates.currentPlayer = secondPicker;
+                    
+                } else if (gameData.phase === 'player' + secondPicker + 'Pick2a') {
+                    // Second picker skipped effect on first die, let them pick second die
+                    updates.phase = 'player' + secondPicker + 'Pick2b';
+                    
+                } else if (gameData.phase === 'player' + secondPicker + 'Pick2b' || gameData.dice.length === 0) {
+                    // Second picker finished or last die already assigned
+                    // Check if both players are done waiting for effects
+                    const p1Waiting = gameData.player1.waitingForDraftEffect;
+                    const p2Waiting = gameData.player2.waitingForDraftEffect;
+                    
+                    if (localPlayer.playerNumber === 1) {
+                        updates['player1/waitingForDraftEffect'] = false;
+                    } else {
+                        updates['player2/waitingForDraftEffect'] = false;
+                    }
+                    
+                    // Check if other player is also done
+                    const otherPlayerStillWaiting = localPlayer.playerNumber === 1 ? p2Waiting : p1Waiting;
+                    
+                    if (!otherPlayerStillWaiting) {
+                        // Both done, finish drafting
+                        gameRef.update(updates).then(() => {
+                            setTimeout(() => finishDrafting(), 500);
+                        });
+                        return;
+                    }
+                }
+                
+                gameRef.update(updates);
+                document.getElementById('draftEffects').classList.add('hidden');
+            });
         }
         
         function useReroll() {
@@ -1855,7 +1985,13 @@
                     player2Dice: [],
                     currentPlayer: firstPicker,
                     'player1/actionComplete': false,
-                    'player2/actionComplete': false
+                    'player2/actionComplete': false,
+                    'player1/usedInsightEffect': false,
+                    'player2/usedInsightEffect': false,
+                    'player1/usedEnergyEffect': false,
+                    'player2/usedEnergyEffect': false,
+                    'player1/waitingForDraftEffect': false,
+                    'player2/waitingForDraftEffect': false
                 });
                 
                 addLog(`Round ${newRound} started!`);
@@ -1907,12 +2043,16 @@
         function addLog(message) {
             if (!gameRef) return;
             
-            gameRef.child('logs').once('value').then(snapshot => {
-                const logs = snapshot.val() || [];
-                logs.push(`[R${Date.now()}] ${message}`);
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const logs = gameData.logs || [];
                 
-                // Keep only last 50 logs
-                const recentLogs = logs.slice(-50);
+                // Use move number instead of timestamp
+                const moveNumber = logs.length + 1;
+                logs.push(`${moveNumber}. ${message}`);
+                
+                // Keep only last 100 logs
+                const recentLogs = logs.slice(-100);
                 
                 gameRef.update({
                     logs: recentLogs

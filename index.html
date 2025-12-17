@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIAXIS Multiplayer v4.0</title>
+    <title>TRIAXIS Multiplayer v4.3</title>
     <style>
         * {
             margin: 0;
@@ -1037,6 +1037,11 @@
         }
         
         function handleGamePhase(gameData) {
+            // Reset resolving flag if we're not in action phase anymore
+            if (gameData.phase !== 'action') {
+                resolvingActionPhase = false;
+            }
+            
             // Hide all areas first
             document.getElementById('diceArea').classList.add('hidden');
             document.getElementById('actionArea').classList.add('hidden');
@@ -1124,8 +1129,8 @@
                     if (myData.actionComplete && oppData.actionComplete) {
                         document.getElementById('turnIndicator').textContent = '⏳ Both actions complete! Processing...';
                         
-                        // Player 1 advances to next phase (only if not already resolving)
-                        if (localPlayer.playerNumber === 1 && !resolvingActionPhase) {
+                        // Player 1 advances to next phase (only if not already resolving this action phase)
+                        if (localPlayer.playerNumber === 1 && !resolvingActionPhase && gameData.phase === 'action') {
                             stopTimerUpdates(); // Stop timer updates
                             setTimeout(() => {
                                 resolveActionPhase();
@@ -1202,9 +1207,15 @@
         }
         
         function resolveActionPhase() {
-            if (localPlayer.playerNumber !== 1) return; // Only player 1 resolves
-            if (resolvingActionPhase) return; // Already resolving
+            console.log('resolveActionPhase called, playerNum:', localPlayer.playerNumber, 'resolvingFlag:', resolvingActionPhase);
             
+            if (localPlayer.playerNumber !== 1) return; // Only player 1 resolves
+            if (resolvingActionPhase) {
+                console.log('Already resolving, skipping');
+                return; // Already resolving
+            }
+            
+            console.log('Starting to resolve action phase');
             resolvingActionPhase = true;
             
             applyEndOfRoundEffects();

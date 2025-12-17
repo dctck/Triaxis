@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIAXIS Multiplayer v4.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .lobby {
+            padding: 30px;
+        }
+        
+        .lobby-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .game-area {
+            padding: 30px;
+        }
+        
+        .round-info {
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        
+        .players {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .player-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 3px solid #e9ecef;
+        }
+        
+        .player-card.active {
+            border-color: #667eea;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .player-card h2 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .resources {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .resource-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 1.1em;
+        }
+        
+        .engines {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        .engines strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .dice-area {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .dice-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .die {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border: 3px solid #333;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .die:hover:not(.picked) {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .die.picked {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        .action-area {
+            background: #e7f3ff;
+            border: 2px solid #0066cc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 15px;
+            font-size: 1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #ccc !important;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .upgrade-list {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .upgrade-item {
+            padding: 15px;
+            margin: 5px 0;
+            border: 2px solid #e9ecef;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upgrade-item:hover:not(.disabled) {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+        
+        .upgrade-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .upgrade-item .effect {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .log-area {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .stat-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .draft-effects {
+            background: #e7f3ff;
+            border: 2px solid #0066cc;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .draft-effects h4 {
+            margin-bottom: 10px;
+            color: #0066cc;
+        }
+        
+        .game-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .game-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .game-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        
+        .waiting-message {
+            text-align: center;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            background: #28a745;
+            color: white;
+            font-weight: bold;
+            z-index: 100;
+        }
+        
+        .connection-status.disconnected {
+            background: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">🟢 Connected</div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>🎲 TRIAXIS Multiplayer v4.0</h1>
+            <p>A 2-Player Dice Engine Game</p>
+            <p id="playerNameDisplay" style="font-size: 0.9em; margin-top: 10px;"></p>
+        </div>
+        
+        <!-- Lobby Screen -->
+        <div class="lobby" id="lobbyScreen">
+            <div class="lobby-section">
+                <h2>Enter Your Name</h2>
+                <div class="input-group">
+                    <label>Player Name:</label>
+                    <input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="20">
+                </div>
+                <button class="btn btn-primary" onclick="setPlayerName()" style="width: 100%;">Continue</button>
+            </div>
+        </div>
+        
+        <!-- Game Selection Screen -->
+        <div class="lobby hidden" id="gameSelectionScreen">
+            <div class="lobby-section">
+                <h2>Create or Join a Game</h2>
+                <button class="btn btn-success" onclick="createNewGame()" style="width: 100%; margin-bottom: 10px;">🎮 Create New Game</button>
+                <button class="btn btn-primary" onclick="refreshGameList()" style="width: 100%;">🔄 Refresh Game List</button>
+            </div>
+            
+            <div class="lobby-section">
+                <h3>Available Games</h3>
+                <div class="game-list" id="gameList">
+                    <p style="text-align: center; color: #666;">Loading games...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Waiting Room -->
+        <div class="lobby hidden" id="waitingRoom">
+            <div class="lobby-section">
+                <h2>Waiting Room</h2>
+                <div class="waiting-message">
+                    <h3>Game Code: <span id="gameCodeDisplay"></span></h3>
+                    <p style="margin: 10px 0;">Share this code with your friend!</p>
+                    <p id="waitingMessage">Waiting for opponent to join...</p>
+                </div>
+                <button class="btn btn-danger" onclick="leaveGame()" style="width: 100%;">Leave Game</button>
+            </div>
+        </div>
+        
+        <!-- Game Screen -->
+        <div class="game-area hidden" id="gameScreen">
+            <div class="round-info">
+                Round <span id="roundNum">1</span>
+                <div style="font-size: 0.6em; margin-top: 5px;" id="turnIndicator"></div>
+            </div>
+            
+            <div class="players">
+                <div class="player-card" id="player1Card">
+                    <h2 id="player1Name">Player 1</h2>
+                    <div class="resources">
+                        <div class="resource-item">⚙️ Metal: <strong id="p1Metal">0</strong></div>
+                        <div class="resource-item">🌱 Energy: <strong id="p1Energy">0</strong></div>
+                        <div class="resource-item">📘 Insight: <strong id="p1Insight">0</strong></div>
+                        <div class="resource-item">⭐ VP: <strong id="p1VP">0</strong></div>
+                    </div>
+                    <div class="resource-item">📦 Total: <strong id="p1Total">0</strong></div>
+                    <div class="engines">
+                        <strong>Engines:</strong>
+                        <div>Metal T<span id="p1MetalTier">0</span> | Energy T<span id="p1EnergyTier">0</span> | Insight T<span id="p1InsightTier">0</span></div>
+                    </div>
+                </div>
+                
+                <div class="player-card" id="player2Card">
+                    <h2 id="player2Name">Player 2</h2>
+                    <div class="resources">
+                        <div class="resource-item">⚙️ Metal: <strong id="p2Metal">0</strong></div>
+                        <div class="resource-item">🌱 Energy: <strong id="p2Energy">0</strong></div>
+                        <div class="resource-item">📘 Insight: <strong id="p2Insight">0</strong></div>
+                        <div class="resource-item">⭐ VP: <strong id="p2VP">0</strong></div>
+                    </div>
+                    <div class="resource-item">📦 Total: <strong id="p2Total">0</strong></div>
+                    <div class="engines">
+                        <strong>Engines:</strong>
+                        <div>Metal T<span id="p2MetalTier">0</span> | Energy T<span id="p2EnergyTier">0</span> | Insight T<span id="p2InsightTier">0</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dice-area hidden" id="diceArea">
+                <h3 id="diceTitle">Rolling dice...</h3>
+                <div class="dice-container" id="diceContainer"></div>
+                
+                <div class="draft-effects hidden" id="draftEffects">
+                    <h4>Draft Phase Effects Available:</h4>
+                    <div id="draftEffectButtons"></div>
+                    <button class="btn btn-secondary" onclick="skipDraftEffects()" style="margin-top: 10px;">Skip / Continue</button>
+                </div>
+            </div>
+            
+            <div class="action-area hidden" id="actionArea">
+                <h3>Choose Your Action</h3>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" id="factoryBtn" onclick="showFactoryMenu()">🏭 View Factory</button>
+                    <button class="btn btn-success" id="tradeBtn" onclick="showTradeMenu()">🏪 Trade Post</button>
+                    <button class="btn btn-danger" id="denyBtn" onclick="useDenial()">⚔️ Insight Denial</button>
+                    <button class="btn btn-secondary" onclick="passAction()">⏭️ Pass</button>
+                </div>
+                <div id="actionDetail" class="hidden"></div>
+            </div>
+            
+            <div class="log-area">
+                <h3>Game Log</h3>
+                <div id="gameLog"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="gameOverModal">
+        <div class="modal-content">
+            <h2 style="text-align: center; color: #667eea; margin-bottom: 20px;">🏆 Game Over!</h2>
+            <div id="gameOverContent"></div>
+            <button class="btn btn-primary" onclick="backToLobby()" style="width: 100%; margin-top: 20px;">Back to Lobby</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <script>
+        // ===== FIREBASE CONFIGURATION =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyCj4Lq7cYvPY3w-uAFCv7OJME3_Ssej77c",
+            authDomain: "triaxis-87e4b.firebaseapp.com",
+            databaseURL: "https://triaxis-87e4b-default-rtdb.firebaseio.com",
+            projectId: "triaxis-87e4b",
+            storageBucket: "triaxis-87e4b.firebasestorage.app",
+            messagingSenderId: "83436719282",
+            appId: "1:83436719282:web:4264224439f6d926788dab",
+            measurementId: "G-SQ467ZT67X"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // ===== GAME STATE =====
+        let localPlayer = {
+            id: generatePlayerId(),
+            name: '',
+            playerNumber: null // 1 or 2
+        };
+        
+        let currentGameId = null;
+        let gameRef = null;
+        let gameListener = null;
+        
+        const engineCosts = {
+            metal: {1: {metal: 3}, 2: {metal: 2, energy: 1}, 3: {metal: 5, insight: 1}},
+            energy: {1: {energy: 2}, 2: {energy: 1, insight: 1}, 3: {metal: 2, energy: 3}},
+            insight: {1: {insight: 2}, 2: {energy: 1, insight: 1}, 3: {metal: 1, insight: 3}}
+        };
+        
+        const engineEffects = {
+            metal: {
+                1: "Gain +1⚙️ at start of each round (PASSIVE)",
+                2: "Metal dice (1-2) give +2⚙️ instead of 1 (PASSIVE)",
+                3: "Gain +2 VP at end of each round (PASSIVE)"
+            },
+            energy: {
+                1: "Convert 1🌱 → any 1 resource (once per round)",
+                2: "Pay 2🌱 → Gain 1 VP (once per round)",
+                3: "Extra action + gain +1 VP per round (PASSIVE VP)"
+            },
+            insight: {
+                1: "Reroll 1 drafted die (once per round, during draft)",
+                2: "Change a die by ±1 (once per round, during draft)",
+                3: "Pay 1📘 → Remove 2⚙️ from opponent + 1 VP (ACTION)"
+            }
+        };
+        
+        // ===== UTILITY FUNCTIONS =====
+        function generatePlayerId() {
+            return 'player_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        }
+        
+        function generateGameCode() {
+            return Math.random().toString(36).substr(2, 6).toUpperCase();
+        }
+        
+        function log(message) {
+            const logDiv = document.getElementById('gameLog');
+            if (!logDiv) return;
+            
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = message;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+        }
+        
+        // ===== LOBBY FUNCTIONS =====
+        function setPlayerName() {
+            const nameInput = document.getElementById('playerNameInput');
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Please enter your name!');
+                return;
+            }
+            
+            localPlayer.name = name;
+            document.getElementById('playerNameDisplay').textContent = `Playing as: ${name}`;
+            
+            document.getElementById('lobbyScreen').classList.add('hidden');
+            document.getElementById('gameSelectionScreen').classList.remove('hidden');
+            
+            refreshGameList();
+        }
+        
+        function createNewGame() {
+            const gameCode = generateGameCode();
+            const gameId = 'game_' + gameCode;
+            
+            const newGame = {
+                gameCode: gameCode,
+                status: 'waiting',
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                player1: {
+                    id: localPlayer.id,
+                    name: localPlayer.name,
+                    metal: 0,
+                    energy: 0,
+                    insight: 0,
+                    vp: 0,
+                    metalTier: 0,
+                    energyTier: 0,
+                    insightTier: 0,
+                    metalSpent: 0,
+                    trades: 0,
+                    denials: 0,
+                    denied: 0,
+                    usedInsightEffect: false,
+                    usedEnergyEffect: false
+                },
+                player2: null,
+                round: 0,
+                dice: [],
+                player1Dice: [],
+                player2Dice: [],
+                phase: 'waiting',
+                currentPlayer: 1,
+                logs: []
+            };
+            
+            database.ref('games/' + gameId).set(newGame)
+                .then(() => {
+                    joinGame(gameId, 1);
+                })
+                .catch(error => {
+                    alert('Error creating game: ' + error.message);
+                });
+        }
+        
+        function refreshGameList() {
+            const gameListDiv = document.getElementById('gameList');
+            gameListDiv.innerHTML = '<p style="text-align: center; color: #666;">Loading games...</p>';
+            
+            database.ref('games').orderByChild('status').equalTo('waiting').once('value')
+                .then(snapshot => {
+                    gameListDiv.innerHTML = '';
+                    
+                    if (!snapshot.exists()) {
+                        gameListDiv.innerHTML = '<p style="text-align: center; color: #666;">No available games. Create one!</p>';
+                        return;
+                    }
+                    
+                    snapshot.forEach(childSnapshot => {
+                        const game = childSnapshot.val();
+                        const gameId = childSnapshot.key;
+                        
+                        const gameItem = document.createElement('div');
+                        gameItem.className = 'game-item';
+                        gameItem.innerHTML = `
+                            <strong>Game Code: ${game.gameCode}</strong><br>
+                            <small>Host: ${game.player1.name}</small>
+                        `;
+                        gameItem.onclick = () => joinGame(gameId, 2);
+                        gameListDiv.appendChild(gameItem);
+                    });
+                })
+                .catch(error => {
+                    gameListDiv.innerHTML = '<p style="text-align: center; color: red;">Error loading games</p>';
+                    console.error(error);
+                });
+        }
+        
+        function joinGame(gameId, playerNumber) {
+            currentGameId = gameId;
+            localPlayer.playerNumber = playerNumber;
+            gameRef = database.ref('games/' + gameId);
+            
+            if (playerNumber === 2) {
+                gameRef.child('player2').set({
+                    id: localPlayer.id,
+                    name: localPlayer.name,
+                    metal: 0,
+                    energy: 0,
+                    insight: 0,
+                    vp: 0,
+                    metalTier: 0,
+                    energyTier: 0,
+                    insightTier: 0,
+                    metalSpent: 0,
+                    trades: 0,
+                    denials: 0,
+                    denied: 0,
+                    usedInsightEffect: false,
+                    usedEnergyEffect: false
+                }).then(() => {
+                    gameRef.update({
+                        status: 'active',
+                        phase: 'start'
+                    });
+                });
+            }
+            
+            document.getElementById('gameSelectionScreen').classList.add('hidden');
+            document.getElementById('waitingRoom').classList.remove('hidden');
+            document.getElementById('gameCodeDisplay').textContent = gameId.replace('game_', '');
+            
+            setupGameListener();
+        }
+        
+        function setupGameListener() {
+            gameListener = gameRef.on('value', snapshot => {
+                if (!snapshot.exists()) {
+                    alert('Game no longer exists!');
+                    backToLobby();
+                    return;
+                }
+                
+                const gameData = snapshot.val();
+                updateGameUI(gameData);
+            });
+        }
+        
+        function updateGameUI(gameData) {
+            // Update connection status
+            document.getElementById('connectionStatus').textContent = '🟢 Connected';
+            document.getElementById('connectionStatus').classList.remove('disconnected');
+            
+            // If waiting for player 2
+            if (gameData.status === 'waiting') {
+                document.getElementById('waitingMessage').textContent = 'Waiting for opponent to join...';
+                return;
+            }
+            
+            // Both players connected - show game
+            if (gameData.status === 'active' && document.getElementById('waitingRoom').classList.contains('hidden') === false) {
+                document.getElementById('waitingRoom').classList.add('hidden');
+                document.getElementById('gameScreen').classList.remove('hidden');
+            }
+            
+            // Update player names
+            document.getElementById('player1Name').textContent = gameData.player1.name + (localPlayer.playerNumber === 1 ? ' (You)' : '');
+            document.getElementById('player2Name').textContent = gameData.player2.name + (localPlayer.playerNumber === 2 ? ' (You)' : '');
+            
+            // Update player stats
+            updatePlayerDisplay(1, gameData.player1);
+            updatePlayerDisplay(2, gameData.player2);
+            
+            // Update round
+            document.getElementById('roundNum').textContent = gameData.round;
+            
+            // Highlight active player
+            document.getElementById('player1Card').classList.toggle('active', gameData.currentPlayer === 1);
+            document.getElementById('player2Card').classList.toggle('active', gameData.currentPlayer === 2);
+            
+            // Update turn indicator
+            const isMyTurn = gameData.currentPlayer === localPlayer.playerNumber;
+            document.getElementById('turnIndicator').textContent = isMyTurn ? '🟢 Your Turn' : '⏳ Opponent\'s Turn';
+            
+            // Handle game phases
+            handleGamePhase(gameData);
+            
+            // Update logs
+            if (gameData.logs && gameData.logs.length > 0) {
+                const logDiv = document.getElementById('gameLog');
+                logDiv.innerHTML = '';
+                gameData.logs.slice().reverse().slice(0, 20).forEach(logEntry => {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    entry.textContent = logEntry;
+                    logDiv.appendChild(entry);
+                });
+            }
+            
+            // Check for game over
+            if (gameData.status === 'finished') {
+                showGameOver(gameData);
+            }
+        }
+        
+        function updatePlayerDisplay(playerNum, playerData) {
+            const prefix = 'p' + playerNum;
+            document.getElementById(prefix + 'Metal').textContent = playerData.metal;
+            document.getElementById(prefix + 'Energy').textContent = playerData.energy;
+            document.getElementById(prefix + 'Insight').textContent = playerData.insight;
+            document.getElementById(prefix + 'VP').textContent = playerData.vp;
+            document.getElementById(prefix + 'Total').textContent = playerData.metal + playerData.energy + playerData.insight;
+            document.getElementById(prefix + 'MetalTier').textContent = playerData.metalTier;
+            document.getElementById(prefix + 'EnergyTier').textContent = playerData.energyTier;
+            document.getElementById(prefix + 'InsightTier').textContent = playerData.insightTier;
+        }
+        
+        function handleGamePhase(gameData) {
+            const isMyTurn = gameData.currentPlayer === localPlayer.playerNumber;
+            
+            // Hide all areas first
+            document.getElementById('diceArea').classList.add('hidden');
+            document.getElementById('actionArea').classList.add('hidden');
+            document.getElementById('draftEffects').classList.add('hidden');
+            
+            if (gameData.phase === 'start') {
+                // Show start button only to player 1
+                if (localPlayer.playerNumber === 1 && gameData.round === 0) {
+                    // Could add a start button here
+                }
+            } else if (gameData.phase === 'rolling' || gameData.phase.includes('Pick')) {
+                document.getElementById('diceArea').classList.remove('hidden');
+                
+                if (gameData.dice && gameData.dice.length > 0) {
+                    document.getElementById('diceTitle').textContent = `Dice: [${gameData.dice.join(', ')}]`;
+                    displayDice(gameData.dice, isMyTurn && gameData.phase.includes('Pick'));
+                }
+                
+                // Show draft effects if it's my turn and I have them
+                if (isMyTurn && gameData.phase.includes('Pick')) {
+                    const myData = localPlayer.playerNumber === 1 ? gameData.player1 : gameData.player2;
+                    const myDice = localPlayer.playerNumber === 1 ? gameData.player1Dice : gameData.player2Dice;
+                    
+                    if (myDice && myDice.length > 0 && !myData.usedInsightEffect) {
+                        if (myData.insightTier >= 1 || myData.insightTier >= 2) {
+                            showDraftEffects(myData.insightTier);
+                        }
+                    }
+                }
+            } else if (gameData.phase === 'action') {
+                if (isMyTurn) {
+                    document.getElementById('actionArea').classList.remove('hidden');
+                    updateActionButtons(gameData);
+                }
+            }
+        }
+        
+        function displayDice(dice, canPick) {
+            const container = document.getElementById('diceContainer');
+            container.innerHTML = '';
+            
+            dice.forEach((die, index) => {
+                const dieDiv = document.createElement('div');
+                dieDiv.className = 'die';
+                if (!canPick) dieDiv.classList.add('picked');
+                dieDiv.textContent = die;
+                if (canPick) {
+                    dieDiv.onclick = () => pickDie(index);
+                }
+                container.appendChild(dieDiv);
+            });
+        }
+        
+        function showDraftEffects(insightTier) {
+            const effectsDiv = document.getElementById('draftEffects');
+            const buttonsDiv = document.getElementById('draftEffectButtons');
+            
+            let html = '';
+            
+            if (insightTier >= 1) {
+                html += '<button class="btn btn-warning" style="margin: 5px;" onclick="useReroll()">🔄 Reroll Last Die</button>';
+            }
+            
+            if (insightTier >= 2) {
+                html += '<button class="btn btn-warning" style="margin: 5px;" onclick="useDieChange()">↕️ Change Last Die ±1</button>';
+            }
+            
+            buttonsDiv.innerHTML = html;
+            effectsDiv.classList.remove('hidden');
+        }
+        
+        function updateActionButtons(gameData) {
+            const myData = localPlayer.playerNumber === 1 ? gameData.player1 : gameData.player2;
+            const oppData = localPlayer.playerNumber === 1 ? gameData.player2 : gameData.player1;
+            
+            const canTrade = myData.metal >= 3 || myData.energy >= 3 || myData.insight >= 3;
+            document.getElementById('tradeBtn').disabled = !canTrade;
+            
+            const canDeny = myData.insightTier >= 3 && myData.insight >= 1 && oppData.metal >= 2;
+            document.getElementById('denyBtn').disabled = !canDeny;
+        }
+        
+        // ===== GAME ACTIONS =====
+        function startGame() {
+            if (localPlayer.playerNumber !== 1) return;
+            
+            gameRef.update({
+                round: 1,
+                phase: 'rolling',
+                dice: rollDice(),
+                player1Dice: [],
+                player2Dice: [],
+                currentPlayer: 1
+            });
+            
+            addLog('Game started! Round 1');
+            
+            // Apply passive effects
+            applyStartOfRoundEffects();
+            
+            setTimeout(() => {
+                gameRef.update({
+                    phase: 'player1Pick1'
+                });
+            }, 1000);
+        }
+        
+        function rollDice() {
+            return Array.from({length: 4}, () => Math.floor(Math.random() * 6) + 1);
+        }
+        
+        function pickDie(index) {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                
+                if (gameData.currentPlayer !== localPlayer.playerNumber) {
+                    alert('Not your turn!');
+                    return;
+                }
+                
+                const die = gameData.dice[index];
+                const newDice = [...gameData.dice];
+                newDice.splice(index, 1);
+                
+                const playerKey = 'player' + localPlayer.playerNumber;
+                const diceKey = playerKey + 'Dice';
+                const newPlayerDice = [...(gameData[diceKey] || []), die];
+                
+                const updates = {
+                    dice: newDice,
+                    [diceKey]: newPlayerDice
+                };
+                
+                addLog(`${localPlayer.name} picked: ${die}`);
+                
+                // Determine next phase
+                if (gameData.phase === 'player1Pick1') {
+                    updates.phase = 'player2Pick1';
+                    updates.currentPlayer = 2;
+                } else if (gameData.phase === 'player2Pick1') {
+                    updates.phase = 'player1Pick2';
+                    updates.currentPlayer = 1;
+                } else if (gameData.phase === 'player1Pick2') {
+                    updates.phase = 'player2Pick2';
+                    updates.currentPlayer = 2;
+                } else if (gameData.phase === 'player2Pick2') {
+                    // Last die goes to player 1
+                    const lastDie = newDice[0];
+                    updates.player1Dice = [...gameData.player1Dice, lastDie];
+                    updates.dice = [];
+                    addLog(`${gameData.player1.name} gets last die: ${lastDie}`);
+                    
+                    // Convert dice to resources
+                    finishDrafting();
+                    return;
+                }
+                
+                gameRef.update(updates);
+            });
+        }
+        
+        function finishDrafting() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                
+                // Convert dice to resources
+                const p1Resources = convertDiceToResources(gameData.player1Dice, gameData.player1);
+                const p2Resources = convertDiceToResources(gameData.player2Dice, gameData.player2);
+                
+                gameRef.update({
+                    'player1/metal': p1Resources.metal,
+                    'player1/energy': p1Resources.energy,
+                    'player1/insight': p1Resources.insight,
+                    'player2/metal': p2Resources.metal,
+                    'player2/energy': p2Resources.energy,
+                    'player2/insight': p2Resources.insight,
+                    phase: 'action',
+                    currentPlayer: 1
+                });
+                
+                addLog(`Drafting complete! Players take actions.`);
+            });
+        }
+        
+        function convertDiceToResources(dice, playerData) {
+            let metal = playerData.metal || 0;
+            let energy = playerData.energy || 0;
+            let insight = playerData.insight || 0;
+            
+            dice.forEach(die => {
+                if (die <= 2) {
+                    const amount = playerData.metalTier >= 2 ? 2 : 1;
+                    metal += amount;
+                } else if (die <= 4) {
+                    energy += 1;
+                } else {
+                    insight += 1;
+                }
+            });
+            
+            return { metal, energy, insight };
+        }
+        
+        function skipDraftEffects() {
+            document.getElementById('draftEffects').classList.add('hidden');
+        }
+        
+        function useReroll() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const playerKey = 'player' + localPlayer.playerNumber;
+                const diceKey = playerKey + 'Dice';
+                const myDice = gameData[diceKey];
+                
+                if (!myDice || myDice.length === 0) return;
+                
+                const lastIndex = myDice.length - 1;
+                const oldDie = myDice[lastIndex];
+                const newDie = Math.floor(Math.random() * 6) + 1;
+                
+                const newDice = [...myDice];
+                newDice[lastIndex] = newDie;
+                
+                gameRef.update({
+                    [diceKey]: newDice,
+                    [playerKey + '/usedInsightEffect']: true
+                });
+                
+                addLog(`${localPlayer.name} rerolled ${oldDie} → ${newDie}`);
+                skipDraftEffects();
+            });
+        }
+        
+        function useDieChange() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const playerKey = 'player' + localPlayer.playerNumber;
+                const diceKey = playerKey + 'Dice';
+                const myDice = gameData[diceKey];
+                
+                if (!myDice || myDice.length === 0) return;
+                
+                const lastDie = myDice[myDice.length - 1];
+                
+                const change = confirm(`Change die ${lastDie}. Press OK for +1, Cancel for -1`);
+                const newValue = change ? Math.min(6, lastDie + 1) : Math.max(1, lastDie - 1);
+                
+                const newDice = [...myDice];
+                newDice[newDice.length - 1] = newValue;
+                
+                gameRef.update({
+                    [diceKey]: newDice,
+                    [playerKey + '/usedInsightEffect']: true
+                });
+                
+                addLog(`${localPlayer.name} changed ${lastDie} → ${newValue}`);
+                skipDraftEffects();
+            });
+        }
+        
+        function showFactoryMenu() {
+            // Implementation similar to single player but with Firebase updates
+            alert('Factory menu - implement with Firebase updates');
+        }
+        
+        function showTradeMenu() {
+            alert('Trade menu - implement with Firebase updates');
+        }
+        
+        function useDenial() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const myKey = 'player' + localPlayer.playerNumber;
+                const oppKey = 'player' + (localPlayer.playerNumber === 1 ? 2 : 1);
+                const myData = gameData[myKey];
+                const oppData = gameData[oppKey];
+                
+                if (myData.insightTier < 3 || myData.insight < 1 || oppData.metal < 2) {
+                    alert('Cannot use Insight Denial!');
+                    return;
+                }
+                
+                gameRef.update({
+                    [myKey + '/insight']: myData.insight - 1,
+                    [myKey + '/vp']: myData.vp + 1,
+                    [myKey + '/denials']: (myData.denials || 0) + 1,
+                    [myKey + '/denied']: (myData.denied || 0) + 2,
+                    [oppKey + '/metal']: oppData.metal - 2
+                });
+                
+                addLog(`${localPlayer.name} used Insight Denial!`);
+                nextPlayer();
+            });
+        }
+        
+        function passAction() {
+            addLog(`${localPlayer.name} passed`);
+            nextPlayer();
+        }
+        
+        function nextPlayer() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                
+                if (gameData.currentPlayer === 2) {
+                    // Both players acted, end round
+                    applyEndOfRoundEffects();
+                    
+                    setTimeout(() => {
+                        checkWinCondition();
+                    }, 1000);
+                } else {
+                    // Switch to player 2
+                    gameRef.update({
+                        currentPlayer: 2
+                    });
+                }
+            });
+        }
+        
+        function applyStartOfRoundEffects() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const updates = {};
+                
+                if (gameData.player1.metalTier >= 1) {
+                    updates['player1/metal'] = gameData.player1.metal + 1;
+                    addLog(`${gameData.player1.name} gains +1⚙️ from Metal Tier I`);
+                }
+                
+                if (gameData.player2.metalTier >= 1) {
+                    updates['player2/metal'] = gameData.player2.metal + 1;
+                    addLog(`${gameData.player2.name} gains +1⚙️ from Metal Tier I`);
+                }
+                
+                if (Object.keys(updates).length > 0) {
+                    gameRef.update(updates);
+                }
+            });
+        }
+        
+        function applyEndOfRoundEffects() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const updates = {};
+                
+                if (gameData.player1.metalTier >= 3) {
+                    updates['player1/vp'] = gameData.player1.vp + 2;
+                    addLog(`${gameData.player1.name} gains +2 VP from Metal Tier III`);
+                }
+                
+                if (gameData.player2.metalTier >= 3) {
+                    updates['player2/vp'] = gameData.player2.vp + 2;
+                    addLog(`${gameData.player2.name} gains +2 VP from Metal Tier III`);
+                }
+                
+                if (gameData.player1.energyTier >= 3) {
+                    updates['player1/vp'] = (updates['player1/vp'] || gameData.player1.vp) + 1;
+                    addLog(`${gameData.player1.name} gains +1 VP from Energy Tier III`);
+                }
+                
+                if (gameData.player2.energyTier >= 3) {
+                    updates['player2/vp'] = (updates['player2/vp'] || gameData.player2.vp) + 1;
+                    addLog(`${gameData.player2.name} gains +1 VP from Energy Tier III`);
+                }
+                
+                // Reset per-round flags
+                updates['player1/usedInsightEffect'] = false;
+                updates['player1/usedEnergyEffect'] = false;
+                updates['player2/usedInsightEffect'] = false;
+                updates['player2/usedEnergyEffect'] = false;
+                
+                if (Object.keys(updates).length > 0) {
+                    gameRef.update(updates);
+                }
+            });
+        }
+        
+        function checkWinCondition() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                
+                const checkPlayer = (playerData, playerName) => {
+                    if (playerData.metal >= 12) {
+                        return { player: playerName, condition: 'Industrial Revolution (12+ Metal)' };
+                    }
+                    
+                    if (playerData.vp >= 18) {
+                        return { player: playerName, condition: 'Victory Points (18 VP)' };
+                    }
+                    
+                    const complete = (playerData.metalTier >= 3 ? 1 : 0) + 
+                                    (playerData.energyTier >= 3 ? 1 : 0) + 
+                                    (playerData.insightTier >= 3 ? 1 : 0);
+                    if (complete >= 3) {
+                        return { player: playerName, condition: 'Engine Mastery (3 families)' };
+                    }
+                    
+                    return null;
+                };
+                
+                const winner = checkPlayer(gameData.player1, gameData.player1.name) || 
+                              checkPlayer(gameData.player2, gameData.player2.name);
+                
+                if (winner) {
+                    gameRef.update({
+                        status: 'finished',
+                        winner: winner
+                    });
+                } else {
+                    // Start next round
+                    startNextRound();
+                }
+            });
+        }
+        
+        function startNextRound() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const newRound = gameData.round + 1;
+                
+                gameRef.update({
+                    round: newRound,
+                    phase: 'rolling',
+                    dice: rollDice(),
+                    player1Dice: [],
+                    player2Dice: [],
+                    currentPlayer: newRound % 2 === 1 ? 1 : 2
+                });
+                
+                addLog(`Round ${newRound} started!`);
+                
+                applyStartOfRoundEffects();
+                
+                setTimeout(() => {
+                    gameRef.update({
+                        phase: newRound % 2 === 1 ? 'player1Pick1' : 'player2Pick1'
+                    });
+                }, 1000);
+            });
+        }
+        
+        function showGameOver(gameData) {
+            const modal = document.getElementById('gameOverModal');
+            const content = document.getElementById('gameOverContent');
+            
+            const winner = gameData.winner;
+            const isWinner = winner.player === localPlayer.name;
+            
+            content.innerHTML = `
+                <h3 style="text-align: center; margin-bottom: 20px;">${isWinner ? '🎉' : '💀'} ${winner.player} WINS!</h3>
+                <p style="text-align: center; font-size: 1.2em; margin-bottom: 20px;">${winner.condition}</p>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>${gameData.player1.name}</h3>
+                        <p>Resources: ⚙️${gameData.player1.metal} 🌱${gameData.player1.energy} 📘${gameData.player1.insight}</p>
+                        <p>VP: ${gameData.player1.vp}</p>
+                        <p>Engines: M${gameData.player1.metalTier}E${gameData.player1.energyTier}I${gameData.player1.insightTier}</p>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <h3>${gameData.player2.name}</h3>
+                        <p>Resources: ⚙️${gameData.player2.metal} 🌱${gameData.player2.energy} 📘${gameData.player2.insight}</p>
+                        <p>VP: ${gameData.player2.vp}</p>
+                        <p>Engines: M${gameData.player2.metalTier}E${gameData.player2.energyTier}I${gameData.player2.insightTier}</p>
+                    </div>
+                </div>
+                
+                <p style="text-align: center; margin-top: 20px;">Game Length: ${gameData.round} rounds</p>
+            `;
+            
+            modal.style.display = 'block';
+        }
+        
+        function addLog(message) {
+            if (!gameRef) return;
+            
+            gameRef.child('logs').once('value').then(snapshot => {
+                const logs = snapshot.val() || [];
+                logs.push(`[R${Date.now()}] ${message}`);
+                
+                // Keep only last 50 logs
+                const recentLogs = logs.slice(-50);
+                
+                gameRef.update({
+                    logs: recentLogs
+                });
+            });
+        }
+        
+        function leaveGame() {
+            if (gameListener) {
+                gameRef.off('value', gameListener);
+            }
+            
+            if (currentGameId) {
+                gameRef.update({
+                    status: 'abandoned'
+                });
+            }
+            
+            backToLobby();
+        }
+        
+        function backToLobby() {
+            if (gameListener) {
+                gameRef.off('value', gameListener);
+                gameListener = null;
+            }
+            
+            currentGameId = null;
+            gameRef = null;
+            
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('waitingRoom').classList.add('hidden');
+            document.getElementById('gameOverModal').style.display = 'none';
+            document.getElementById('gameSelectionScreen').classList.remove('hidden');
+            
+            refreshGameList();
+        }
+        
+        // Connection monitoring
+        database.ref('.info/connected').on('value', snapshot => {
+            const status = document.getElementById('connectionStatus');
+            if (snapshot.val() === true) {
+                status.textContent = '🟢 Connected';
+                status.classList.remove('disconnected');
+            } else {
+                status.textContent = '🔴 Disconnected';
+                status.classList.add('disconnected');
+            }
+        });
+        
+        // Auto-start game when both players ready
+        function setupAutoStart() {
+            if (localPlayer.playerNumber === 1) {
+                gameRef.on('value', snapshot => {
+                    const gameData = snapshot.val();
+                    if (gameData && gameData.status === 'active' && gameData.round === 0) {
+                        setTimeout(() => startGame(), 2000);
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

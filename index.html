@@ -966,13 +966,22 @@
             // Update round
             document.getElementById('roundNum').textContent = gameData.round;
             
-            // Highlight active player
-            document.getElementById('player1Card').classList.toggle('active', gameData.currentPlayer === 1);
-            document.getElementById('player2Card').classList.toggle('active', gameData.currentPlayer === 2);
+            // Highlight active player (during draft) or both (during action)
+            if (gameData.phase === 'action') {
+                document.getElementById('player1Card').classList.add('active');
+                document.getElementById('player2Card').classList.add('active');
+            } else {
+                document.getElementById('player1Card').classList.toggle('active', gameData.currentPlayer === 1);
+                document.getElementById('player2Card').classList.toggle('active', gameData.currentPlayer === 2);
+            }
             
             // Update turn indicator
-            const isMyTurn = gameData.currentPlayer === localPlayer.playerNumber;
-            document.getElementById('turnIndicator').textContent = isMyTurn ? '🟢 Your Turn' : '⏳ Opponent\'s Turn';
+            if (gameData.phase === 'action') {
+                // Will be updated in handleGamePhase with timer
+            } else {
+                const isMyTurn = gameData.currentPlayer === localPlayer.playerNumber;
+                document.getElementById('turnIndicator').textContent = isMyTurn ? '🟢 Your Turn' : '⏳ Opponent\'s Turn';
+            }
             
             // Handle game phases
             handleGamePhase(gameData);
@@ -1017,8 +1026,6 @@
         }
         
         function handleGamePhase(gameData) {
-            const isMyTurn = gameData.currentPlayer === localPlayer.playerNumber;
-            
             // Hide all areas first
             document.getElementById('diceArea').classList.add('hidden');
             document.getElementById('actionArea').classList.add('hidden');
@@ -1033,11 +1040,25 @@
                 document.getElementById('diceArea').classList.remove('hidden');
                 
                 if (gameData.dice && gameData.dice.length > 0) {
-                    document.getElementById('diceTitle').textContent = `Dice: [${gameData.dice.join(', ')}]`;
-                    displayDice(gameData.dice, isMyTurn && gameData.phase.includes('Pick'));
+                    // Show whose turn it is in drafting
+                    const firstPicker = gameData.round % 2 === 1 ? 1 : 2;
+                    let draftStatus = '';
+                    
+                    if (gameData.phase.includes('Pick1')) {
+                        draftStatus = `${gameData['player' + firstPicker].name} picks 1st die`;
+                    } else if (gameData.phase.includes('Pick2')) {
+                        const secondPicker = firstPicker === 1 ? 2 : 1;
+                        draftStatus = `${gameData['player' + secondPicker].name} picks ${gameData.phase.includes('2a') ? '2nd' : '3rd'} die`;
+                    }
+                    
+                    document.getElementById('diceTitle').textContent = `Dice: [${gameData.dice.join(', ')}] - ${draftStatus}`;
+                    
+                    const canPick = gameData.currentPlayer === localPlayer.playerNumber;
+                    displayDice(gameData.dice, canPick);
                 }
                 
                 // Show draft effects if it's my turn and I have them
+                const isMyTurn = gameData.currentPlayer === localPlayer.playerNumber;
                 if (isMyTurn && gameData.phase.includes('Pick')) {
                     const myData = localPlayer.playerNumber === 1 ? gameData.player1 : gameData.player2;
                     const myDice = localPlayer.playerNumber === 1 ? gameData.player1Dice : gameData.player2Dice;
@@ -1049,11 +1070,88 @@
                     }
                 }
             } else if (gameData.phase === 'action') {
-                if (isMyTurn) {
-                    document.getElementById('actionArea').classList.remove('hidden');
-                    updateActionButtons(gameData);
+                const myData = localPlayer.playerNumber === 1 ? gameData.player1 : gameData.player2;
+                const oppData = localPlayer.playerNumber === 1 ? gameData.player2 : gameData.player1;
+                
+                // Show action area for everyone during action phase
+                document.getElementById('actionArea').classList.remove('hidden');
+                
+                // Calculate time remaining
+                if (gameData.actionPhaseStartTime && gameData.actionTimeLimit) {
+                    const elapsed = Date.now() - gameData.actionPhaseStartTime;
+                    const remaining = Math.max(0, gameData.actionTimeLimit - elapsed);
+                    const seconds = Math.ceil(remaining / 1000);
+                    
+                    // Update turn indicator with timer
+                    const timerDisplay = `⏱️ ${seconds}s remaining`;
+                    
+                    if (myData.actionComplete) {
+                        document.getElementById('turnIndicator').textContent = `✅ Action complete! Waiting for opponent... ${timerDisplay}`;
+                        document.getElementById('actionArea').style.opacity = '0.5';
+                        document.getElementById('actionArea').style.pointerEvents = 'none';
+                    } else {
+                        document.getElementById('turnIndicator').textContent = `🟢 Your Turn - ${timerDisplay}`;
+                        document.getElementById('actionArea').style.opacity = '1';
+                        document.getElementById('actionArea').style.pointerEvents = 'auto';
+                        updateActionButtons(gameData);
+                    }
+                    
+                    // Check if time expired
+                    if (remaining <= 0 && localPlayer.playerNumber === 1) {
+                        // Player 1 handles timeout
+                        handleActionTimeout();
+                    }
+                    
+                    // Check if both players are done
+                    if (myData.actionComplete && oppData.actionComplete) {
+                        document.getElementById('turnIndicator').textContent = '⏳ Both actions complete! Processing...';
+                        
+                        // Player 1 advances to next phase
+                        if (localPlayer.playerNumber === 1) {
+                            setTimeout(() => {
+                                resolveActionPhase();
+                            }, 1000);
+                        }
+                    }
                 }
             }
+        }
+        
+        function handleActionTimeout() {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                
+                // Auto-pass for players who didn't act
+                const updates = {};
+                
+                if (!gameData.player1.actionComplete) {
+                    updates['player1/actionComplete'] = true;
+                    addLog(`${gameData.player1.name} passed (time expired)`);
+                }
+                
+                if (!gameData.player2.actionComplete) {
+                    updates['player2/actionComplete'] = true;
+                    addLog(`${gameData.player2.name} passed (time expired)`);
+                }
+                
+                if (Object.keys(updates).length > 0) {
+                    gameRef.update(updates).then(() => {
+                        setTimeout(() => {
+                            resolveActionPhase();
+                        }, 1000);
+                    });
+                }
+            });
+        }
+        
+        function resolveActionPhase() {
+            if (localPlayer.playerNumber !== 1) return; // Only player 1 resolves
+            
+            applyEndOfRoundEffects();
+            
+            setTimeout(() => {
+                checkWinCondition();
+            }, 1000);
         }
         
         function displayDice(dice, canPick) {
@@ -1105,6 +1203,8 @@
         function startGame() {
             if (localPlayer.playerNumber !== 1) return;
             
+            const firstPicker = 1; // Round 1, player 1 goes first
+            
             gameRef.update({
                 status: 'active',
                 round: 1,
@@ -1112,17 +1212,18 @@
                 dice: rollDice(),
                 player1Dice: [],
                 player2Dice: [],
-                currentPlayer: 1
+                currentPlayer: firstPicker
             });
             
             addLog('Game started! Round 1');
+            addLog(`${firstPicker === 1 ? 'Player 1' : 'Player 2'} picks first this round`);
             
             // Apply passive effects
             applyStartOfRoundEffects();
             
             setTimeout(() => {
                 gameRef.update({
-                    phase: 'player1Pick1'
+                    phase: 'player' + firstPicker + 'Pick1'
                 });
             }, 1000);
         }
@@ -1155,25 +1256,37 @@
                 
                 addLog(`${localPlayer.name} picked: ${die}`);
                 
-                // Determine next phase
-                if (gameData.phase === 'player1Pick1') {
-                    updates.phase = 'player2Pick1';
-                    updates.currentPlayer = 2;
-                } else if (gameData.phase === 'player2Pick1') {
-                    updates.phase = 'player1Pick2';
-                    updates.currentPlayer = 1;
-                } else if (gameData.phase === 'player1Pick2') {
-                    updates.phase = 'player2Pick2';
-                    updates.currentPlayer = 2;
-                } else if (gameData.phase === 'player2Pick2') {
-                    // Last die goes to player 1
-                    const lastDie = newDice[0];
-                    updates.player1Dice = [...gameData.player1Dice, lastDie];
-                    updates.dice = [];
-                    addLog(`${gameData.player1.name} gets last die: ${lastDie}`);
+                // Snake draft: P1 picks 1st, P2 picks 2nd and 3rd, P1 gets 4th (last)
+                const firstPicker = gameData.round % 2 === 1 ? 1 : 2; // Alternates who goes first
+                
+                if (gameData.phase === 'player' + firstPicker + 'Pick1') {
+                    // First picker took 1st die, now second picker gets 2 picks
+                    const secondPicker = firstPicker === 1 ? 2 : 1;
+                    updates.phase = 'player' + secondPicker + 'Pick2a';
+                    updates.currentPlayer = secondPicker;
                     
-                    // Convert dice to resources
-                    finishDrafting();
+                } else if (gameData.phase === 'player' + localPlayer.playerNumber + 'Pick2a') {
+                    // Second picker took their first die, still their turn for 2nd die
+                    updates.phase = 'player' + localPlayer.playerNumber + 'Pick2b';
+                    // currentPlayer stays the same
+                    
+                } else if (gameData.phase === 'player' + localPlayer.playerNumber + 'Pick2b') {
+                    // Second picker took both dice, first picker gets last die automatically
+                    const lastDie = newDice[0];
+                    const firstPickerKey = 'player' + firstPicker;
+                    const firstPickerDiceKey = firstPickerKey + 'Dice';
+                    
+                    updates[firstPickerDiceKey] = [...gameData[firstPickerDiceKey], lastDie];
+                    updates.dice = [];
+                    
+                    addLog(`${gameData[firstPickerKey].name} gets last die: ${lastDie}`);
+                    
+                    // Draft done, convert to resources and go to action phase
+                    setTimeout(() => {
+                        finishDrafting();
+                    }, 500);
+                    
+                    gameRef.update(updates);
                     return;
                 }
                 
@@ -1189,18 +1302,24 @@
                 const p1Resources = convertDiceToResources(gameData.player1Dice, gameData.player1);
                 const p2Resources = convertDiceToResources(gameData.player2Dice, gameData.player2);
                 
+                const now = Date.now();
+                
                 gameRef.update({
                     'player1/metal': p1Resources.metal,
                     'player1/energy': p1Resources.energy,
                     'player1/insight': p1Resources.insight,
+                    'player1/actionComplete': false,
                     'player2/metal': p2Resources.metal,
                     'player2/energy': p2Resources.energy,
                     'player2/insight': p2Resources.insight,
+                    'player2/actionComplete': false,
                     phase: 'action',
-                    currentPlayer: 1
+                    actionPhaseStartTime: now,
+                    actionTimeLimit: 60000 // 60 seconds = 1 minute
                 });
                 
-                addLog(`Drafting complete! Players take actions.`);
+                addLog(`Drafting complete! Both players take actions simultaneously.`);
+                addLog(`⏰ You have 1 minute to complete your action!`);
             });
         }
         
@@ -1281,12 +1400,313 @@
         }
         
         function showFactoryMenu() {
-            // Implementation similar to single player but with Firebase updates
-            alert('Factory menu - implement with Firebase updates');
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const myKey = 'player' + localPlayer.playerNumber;
+                const myData = gameData[myKey];
+                
+                if (myData.actionComplete) {
+                    alert('You already completed your action!');
+                    return;
+                }
+                
+                const detail = document.getElementById('actionDetail');
+                detail.className = '';
+                
+                let html = '<div class="upgrade-list">';
+                
+                html += '<h4>🏭 Your Current Engines</h4>';
+                
+                const families = ['metal', 'energy', 'insight'];
+                let hasAnyEngine = false;
+                
+                families.forEach(family => {
+                    const tier = myData[family + 'Tier'];
+                    if (tier > 0) {
+                        hasAnyEngine = true;
+                        const familyName = family.charAt(0).toUpperCase() + family.slice(1);
+                        const icon = family === 'metal' ? '⚙️' : family === 'energy' ? '🌱' : '📘';
+                        
+                        html += `<div style="background: white; padding: 15px; margin: 10px 0; border-radius: 8px; border: 2px solid #667eea;">`;
+                        html += `<strong>${icon} ${familyName} - Tier ${tier}</strong><br>`;
+                        
+                        for (let i = 1; i <= tier; i++) {
+                            const effect = engineEffects[family][i];
+                            html += `<div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 5px;">`;
+                            html += `Tier ${i}: ${effect}`;
+                            html += `</div>`;
+                        }
+                        
+                        html += `</div>`;
+                    }
+                });
+                
+                if (!hasAnyEngine) {
+                    html += '<p style="color: #666; font-style: italic;">No engines built yet.</p>';
+                }
+                
+                html += '<h4 style="margin-top: 20px;">📈 Available Upgrades</h4>';
+                
+                families.forEach(family => {
+                    const currentTier = myData[family + 'Tier'];
+                    const nextTier = currentTier + 1;
+                    
+                    if (nextTier <= 3) {
+                        const cost = engineCosts[family][nextTier];
+                        const canAfford = canAffordUpgrade(myData, family, nextTier);
+                        const costText = Object.entries(cost).map(([res, amt]) => 
+                            `${amt}${res === 'metal' ? '⚙️' : res === 'energy' ? '🌱' : '📘'}`
+                        ).join(' + ');
+                        
+                        const vpGain = family === 'metal' ? 0 : 1;
+                        const effect = engineEffects[family][nextTier];
+                        const familyName = family.charAt(0).toUpperCase() + family.slice(1);
+                        
+                        html += `<div class="upgrade-item ${!canAfford ? 'disabled' : ''}" onclick="${canAfford ? `buyUpgrade('${family}', ${nextTier})` : ''}">
+                            <strong>${familyName} Tier ${nextTier}</strong> (+${vpGain} VP)
+                            <br>Cost: ${costText}
+                            <div class="effect">Effect: ${effect}</div>
+                        </div>`;
+                    }
+                });
+                
+                html += '<button class="btn btn-secondary" onclick="closeActionDetail()" style="margin-top: 15px; width: 100%;">Close</button>';
+                html += '</div>';
+                detail.innerHTML = html;
+            });
+        }
+        
+        function canAffordUpgrade(player, family, tier) {
+            const cost = engineCosts[family][tier];
+            return (!cost.metal || player.metal >= cost.metal) &&
+                   (!cost.energy || player.energy >= cost.energy) &&
+                   (!cost.insight || player.insight >= cost.insight);
+        }
+        
+        function buyUpgrade(family, tier) {
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const myKey = 'player' + localPlayer.playerNumber;
+                const myData = gameData[myKey];
+                const cost = engineCosts[family][tier];
+                
+                const updates = {};
+                
+                if (cost.metal) {
+                    updates[myKey + '/metal'] = myData.metal - cost.metal;
+                    updates[myKey + '/metalSpent'] = (myData.metalSpent || 0) + cost.metal;
+                }
+                if (cost.energy) {
+                    updates[myKey + '/energy'] = myData.energy - cost.energy;
+                }
+                if (cost.insight) {
+                    updates[myKey + '/insight'] = myData.insight - cost.insight;
+                }
+                
+                updates[myKey + '/' + family + 'Tier'] = tier;
+                
+                const vpGain = family === 'metal' ? 0 : 1;
+                updates[myKey + '/vp'] = myData.vp + vpGain;
+                updates[myKey + '/actionComplete'] = true;
+                
+                gameRef.update(updates);
+                
+                addLog(`${localPlayer.name} bought ${family.charAt(0).toUpperCase() + family.slice(1)} Tier ${tier}! (+${vpGain} VP)`);
+                
+                closeActionDetail();
+            });
+        }
+        
+        function closeActionDetail() {
+            document.getElementById('actionDetail').classList.add('hidden');
+            document.getElementById('actionDetail').innerHTML = '';
         }
         
         function showTradeMenu() {
-            alert('Trade menu - implement with Firebase updates');
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const myKey = 'player' + localPlayer.playerNumber;
+                const myData = gameData[myKey];
+                
+                if (myData.actionComplete) {
+                    alert('You already completed your action!');
+                    return;
+                }
+                
+                const detail = document.getElementById('actionDetail');
+                detail.className = '';
+                
+                if (myData.metal < 3 && myData.energy < 3 && myData.insight < 3) {
+                    alert('Need 3 of any resource!');
+                    return;
+                }
+                
+                let html = '<div class="upgrade-list"><h4>🏪 Trade Post</h4>';
+                html += '<p style="margin-bottom: 15px;">Trade 3 of one resource for 2 different resources</p>';
+                
+                html += '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">';
+                html += '<h5 style="margin-bottom: 10px;">Step 1: Choose what to trade away (need 3)</h5>';
+                html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
+                
+                if (myData.metal >= 3) {
+                    html += '<button class="btn btn-warning" style="flex: 1; min-width: 100px;" onclick="selectTradeFrom(\'metal\')">Trade 3⚙️ Metal</button>';
+                } else {
+                    html += `<button class="btn" style="flex: 1; min-width: 100px; background: #ddd;" disabled>3⚙️ Metal (need ${3 - myData.metal} more)</button>`;
+                }
+                
+                if (myData.energy >= 3) {
+                    html += '<button class="btn btn-warning" style="flex: 1; min-width: 100px;" onclick="selectTradeFrom(\'energy\')">Trade 3🌱 Energy</button>';
+                } else {
+                    html += `<button class="btn" style="flex: 1; min-width: 100px; background: #ddd;" disabled>3🌱 Energy (need ${3 - myData.energy} more)</button>`;
+                }
+                
+                if (myData.insight >= 3) {
+                    html += '<button class="btn btn-warning" style="flex: 1; min-width: 100px;" onclick="selectTradeFrom(\'insight\')">Trade 3📘 Insight</button>';
+                } else {
+                    html += `<button class="btn" style="flex: 1; min-width: 100px; background: #ddd;" disabled>3📘 Insight (need ${3 - myData.insight} more)</button>`;
+                }
+                
+                html += '</div></div>';
+                
+                html += '<div id="tradeStep2" style="display:none;">';
+                html += '<div style="background: #e7f3ff; padding: 15px; border-radius: 8px;">';
+                html += '<h5 style="margin-bottom: 10px;">Step 2: Choose 2 resources to receive</h5>';
+                html += '<div id="tradeReceiveButtons"></div>';
+                html += '</div></div>';
+                
+                html += '<button class="btn btn-secondary" onclick="closeActionDetail()" style="margin-top: 15px; width: 100%;">Close</button>';
+                html += '</div>';
+                detail.innerHTML = html;
+            });
+        }
+        
+        let tradeState = {from: null, to: []};
+        
+        function selectTradeFrom(resource) {
+            tradeState.from = resource;
+            tradeState.to = [];
+            
+            const icon = resource === 'metal' ? '⚙️' : resource === 'energy' ? '🌱' : '📘';
+            document.getElementById('tradeStep2').style.display = 'block';
+            
+            const receiveDiv = document.getElementById('tradeReceiveButtons');
+            receiveDiv.innerHTML = `<p style="margin-bottom: 10px;">Trading away: <strong>3${icon}</strong> | Select 2 to receive:</p>`;
+            
+            const resources = [
+                {value: 'metal', label: '⚙️ Metal'},
+                {value: 'energy', label: '🌱 Energy'},
+                {value: 'insight', label: '📘 Insight'}
+            ];
+            
+            let buttonsHtml = '<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">';
+            resources.forEach(res => {
+                if (res.value !== resource) {
+                    buttonsHtml += `<button class="btn btn-success" id="receive_${res.value}" style="flex: 1; min-width: 100px;" onclick="toggleReceive('${res.value}')">${res.label}</button>`;
+                }
+            });
+            buttonsHtml += '</div>';
+            
+            buttonsHtml += '<div id="selectedResources" style="margin: 10px 0; padding: 10px; background: white; border-radius: 5px; min-height: 40px;"></div>';
+            buttonsHtml += '<div style="display: flex; gap: 10px; margin-top: 10px;">';
+            buttonsHtml += '<button class="btn btn-secondary" style="flex: 1;" onclick="resetTradeSelection()">Reset Selection</button>';
+            buttonsHtml += '<button class="btn btn-primary" id="confirmTradeBtn" style="flex: 1;" onclick="confirmTrade()" disabled>Confirm Trade</button>';
+            buttonsHtml += '</div>';
+            
+            receiveDiv.innerHTML += buttonsHtml;
+            updateTradeDisplay();
+        }
+
+        function resetTradeSelection() {
+            tradeState.to = [];
+            updateTradeDisplay();
+        }
+        
+        function toggleReceive(resource) {
+            const index = tradeState.to.indexOf(resource);
+            
+            if (index >= 0) {
+                tradeState.to.splice(index, 1);
+            } else {
+                if (tradeState.to.length < 2) {
+                    tradeState.to.push(resource);
+                }
+            }
+            
+            updateTradeDisplay();
+        }
+        
+        function updateTradeDisplay() {
+            const resources = [
+                {value: 'metal', label: '⚙️ Metal'},
+                {value: 'energy', label: '🌱 Energy'},
+                {value: 'insight', label: '📘 Insight'}
+            ];
+            
+            resources.forEach(res => {
+                const btn = document.getElementById(`receive_${res.value}`);
+                if (btn) {
+                    if (tradeState.to.includes(res.value)) {
+                        btn.style.background = '#28a745';
+                        btn.style.transform = 'scale(1.05)';
+                        btn.style.boxShadow = '0 0 10px rgba(40, 167, 69, 0.5)';
+                    } else {
+                        btn.style.background = '';
+                        btn.style.transform = '';
+                        btn.style.boxShadow = '';
+                    }
+                }
+            });
+            
+            const selectedDiv = document.getElementById('selectedResources');
+            if (selectedDiv) {
+                if (tradeState.to.length === 0) {
+                    selectedDiv.innerHTML = '<em style="color: #999;">Select 2 resources to receive...</em>';
+                } else {
+                    const icons = tradeState.to.map(r => {
+                        return r === 'metal' ? '⚙️ Metal' : r === 'energy' ? '🌱 Energy' : '📘 Insight';
+                    });
+                    selectedDiv.innerHTML = `<strong>You will receive:</strong> ${icons.join(' + ')} ${tradeState.to.length < 2 ? '(select 1 more)' : '✓'}`;
+                }
+            }
+            
+            const confirmBtn = document.getElementById('confirmTradeBtn');
+            if (confirmBtn) {
+                confirmBtn.disabled = tradeState.to.length !== 2;
+            }
+        }
+        
+        function confirmTrade() {
+            if (tradeState.to.length !== 2) {
+                alert('Select exactly 2 resources!');
+                return;
+            }
+            
+            gameRef.once('value').then(snapshot => {
+                const gameData = snapshot.val();
+                const myKey = 'player' + localPlayer.playerNumber;
+                const myData = gameData[myKey];
+                
+                const updates = {};
+                updates[myKey + '/' + tradeState.from] = myData[tradeState.from] - 3;
+                updates[myKey + '/metalSpent'] = (myData.metalSpent || 0) + (tradeState.from === 'metal' ? 3 : 0);
+                updates[myKey + '/trades'] = (myData.trades || 0) + 1;
+                
+                tradeState.to.forEach(resource => {
+                    updates[myKey + '/' + resource] = myData[resource] + 1;
+                });
+                
+                updates[myKey + '/actionComplete'] = true;
+                
+                gameRef.update(updates);
+                
+                const fromIcon = tradeState.from === 'metal' ? '⚙️' : tradeState.from === 'energy' ? '🌱' : '📘';
+                const toIcons = tradeState.to.map(r => r === 'metal' ? '⚙️' : r === 'energy' ? '🌱' : '📘');
+                
+                addLog(`${localPlayer.name} traded 3${fromIcon} for ${toIcons[0]} and ${toIcons[1]}`);
+                
+                tradeState = {from: null, to: []};
+                closeActionDetail();
+            });
         }
         
         function useDenial() {
@@ -1307,37 +1727,22 @@
                     [myKey + '/vp']: myData.vp + 1,
                     [myKey + '/denials']: (myData.denials || 0) + 1,
                     [myKey + '/denied']: (myData.denied || 0) + 2,
+                    [myKey + '/actionComplete']: true,
                     [oppKey + '/metal']: oppData.metal - 2
                 });
                 
                 addLog(`${localPlayer.name} used Insight Denial!`);
-                nextPlayer();
             });
         }
         
         function passAction() {
-            addLog(`${localPlayer.name} passed`);
-            nextPlayer();
-        }
-        
-        function nextPlayer() {
-            gameRef.once('value').then(snapshot => {
-                const gameData = snapshot.val();
-                
-                if (gameData.currentPlayer === 2) {
-                    // Both players acted, end round
-                    applyEndOfRoundEffects();
-                    
-                    setTimeout(() => {
-                        checkWinCondition();
-                    }, 1000);
-                } else {
-                    // Switch to player 2
-                    gameRef.update({
-                        currentPlayer: 2
-                    });
-                }
+            const playerKey = 'player' + localPlayer.playerNumber;
+            
+            gameRef.update({
+                [playerKey + '/actionComplete']: true
             });
+            
+            addLog(`${localPlayer.name} passed`);
         }
         
         function applyStartOfRoundEffects() {
@@ -1440,6 +1845,7 @@
             gameRef.once('value').then(snapshot => {
                 const gameData = snapshot.val();
                 const newRound = gameData.round + 1;
+                const firstPicker = newRound % 2 === 1 ? 1 : 2; // Alternate who goes first
                 
                 gameRef.update({
                     round: newRound,
@@ -1447,16 +1853,19 @@
                     dice: rollDice(),
                     player1Dice: [],
                     player2Dice: [],
-                    currentPlayer: newRound % 2 === 1 ? 1 : 2
+                    currentPlayer: firstPicker,
+                    'player1/actionComplete': false,
+                    'player2/actionComplete': false
                 });
                 
                 addLog(`Round ${newRound} started!`);
+                addLog(`${gameData['player' + firstPicker].name} picks first this round`);
                 
                 applyStartOfRoundEffects();
                 
                 setTimeout(() => {
                     gameRef.update({
-                        phase: newRound % 2 === 1 ? 'player1Pick1' : 'player2Pick1'
+                        phase: 'player' + firstPicker + 'Pick1'
                     });
                 }, 1000);
             });

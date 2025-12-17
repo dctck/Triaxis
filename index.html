@@ -1876,6 +1876,8 @@
         }
         
         function applyStartOfRoundEffects() {
+            if (localPlayer.playerNumber !== 1) return; // Only player 1 applies effects
+            
             gameRef.once('value').then(snapshot => {
                 const gameData = snapshot.val();
                 const updates = {};
@@ -1897,6 +1899,8 @@
         }
         
         function applyEndOfRoundEffects() {
+            if (localPlayer.playerNumber !== 1) return; // Only player 1 applies effects
+            
             gameRef.once('value').then(snapshot => {
                 const gameData = snapshot.val();
                 const updates = {};
@@ -1934,6 +1938,8 @@
         }
         
         function checkWinCondition() {
+            if (localPlayer.playerNumber !== 1) return; // Only player 1 checks
+            
             gameRef.once('value').then(snapshot => {
                 const gameData = snapshot.val();
                 
@@ -1972,6 +1978,8 @@
         }
         
         function startNextRound() {
+            if (localPlayer.playerNumber !== 1) return; // Only player 1 starts rounds
+            
             gameRef.once('value').then(snapshot => {
                 const gameData = snapshot.val();
                 const newRound = gameData.round + 1;
